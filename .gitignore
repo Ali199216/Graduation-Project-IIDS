@@ -1,0 +1,6 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+data/NF-UNSW-NB15-v2.csv
