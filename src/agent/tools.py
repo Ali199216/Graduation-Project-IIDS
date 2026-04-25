@@ -23,29 +23,9 @@ from preprocessing import clean_features
 from agent.models_loader import models
 
 
-# ━━━━━━━━━━━━━━━ SHARED STATE ━━━━━━━━━━━━━━━
-# These are shared across the Streamlit app via st.session_state
-# but tools access them through these module-level references
-_alerts_list = []
-_blocked_ips = set()
-
-
-def set_shared_state(alerts_ref, blocked_ref):
-    """Called from the Streamlit app to share session state references."""
-    global _alerts_list, _blocked_ips
-    _alerts_list = alerts_ref
-    _blocked_ips = blocked_ref
-
-
-def get_alerts():
-    return _alerts_list
-
-
-def get_blocked_ips():
-    return _blocked_ips
-
-
 # ━━━━━━━━━━━━━━━ HELPERS ━━━━━━━━━━━━━━━━━━━━
+import db_utils
+from explain_utils import explain_prediction as get_shap_explanation
 def _build_dataframe(flow_dict: dict) -> pd.DataFrame:
     """Build a DataFrame from user-provided flow dictionary, filling missing features."""
     sample_pool = pd.read_csv(SAMPLED_PATH)
@@ -106,10 +86,9 @@ def _run_pipeline(flow_dict: dict) -> dict:
     return result
 
 
-def _create_alert(src_ip, dst_ip, attack_type, severity, anomaly_score, malicious_prob, details=""):
-    """Create an alert entry and add it to the alerts list."""
+def _create_alert(src_ip, dst_ip, attack_type, severity, anomaly_score, malicious_prob, details="", shap_explanation=""):
+    """Create an alert entry and add it to the DB."""
     alert = {
-        "id": len(_alerts_list) + 1,
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "src_ip": src_ip,
         "dst_ip": dst_ip,
@@ -119,8 +98,10 @@ def _create_alert(src_ip, dst_ip, attack_type, severity, anomaly_score, maliciou
         "malicious_probability": malicious_prob,
         "details": details,
         "status": "ACTIVE",
+        "shap_explanation": shap_explanation
     }
-    _alerts_list.append(alert)
+    alert_id = db_utils.save_attack_to_db(alert)
+    alert["id"] = alert_id
     return alert
 
 
@@ -174,19 +155,24 @@ def analyze_flow(
     # AUTO-ALERT if malicious
     if result["is_malicious"]:
         severity = "CRITICAL" if result["malicious_probability"] > 0.85 else "HIGH"
+        shap_explanation = get_shap_explanation(models.stage1_xgb, flow)
+        result["shap_explanation"] = shap_explanation
+        
         alert = _create_alert(
             src_ip=src_ip, dst_ip=dst_ip,
             attack_type=result.get("attack_type", "Unknown"),
             severity=severity,
             anomaly_score=result["anomaly_score"],
             malicious_prob=result["malicious_probability"],
-            details=f"Port {L4_SRC_PORT}->{L4_DST_PORT}, Protocol {PROTOCOL_NAMES.get(PROTOCOL, str(PROTOCOL))}, {IN_BYTES} bytes in / {OUT_BYTES} bytes out"
+            details=f"Port {L4_SRC_PORT}->{L4_DST_PORT}, Protocol {PROTOCOL_NAMES.get(PROTOCOL, str(PROTOCOL))}, {IN_BYTES} bytes in / {OUT_BYTES} bytes out",
+            shap_explanation=shap_explanation
         )
         result["alert_created"] = True
         result["alert_id"] = alert["id"]
 
         # Check if IP is already blocked
-        if src_ip in _blocked_ips:
+        blocked_ips = db_utils.get_blocked_ips_db()
+        if src_ip in blocked_ips:
             result["ip_status"] = f"IP {src_ip} is ALREADY BLOCKED"
         else:
             result["ip_status"] = f"IP {src_ip} is NOT blocked - recommend blocking!"
@@ -203,21 +189,23 @@ def block_ip(ip_address: str) -> str:
     - ip_address: The IP address to block
     """
     ip_address = ip_address.strip()
+    blocked_ips = db_utils.get_blocked_ips_db()
 
-    if ip_address in _blocked_ips:
+    if ip_address in blocked_ips:
         return json.dumps({
             "status": "already_blocked",
             "message": f"IP {ip_address} is already in the block list.",
-            "total_blocked": len(_blocked_ips),
+            "total_blocked": len(blocked_ips),
         })
 
-    _blocked_ips.add(ip_address)
+    db_utils.block_ip_db(ip_address)
+    blocked_ips = db_utils.get_blocked_ips_db()
 
     return json.dumps({
         "status": "blocked",
         "message": f"IP {ip_address} has been BLOCKED successfully!",
-        "total_blocked": len(_blocked_ips),
-        "blocked_ips": list(_blocked_ips),
+        "total_blocked": len(blocked_ips),
+        "blocked_ips": list(blocked_ips),
     })
 
 
@@ -229,19 +217,21 @@ def unblock_ip(ip_address: str) -> str:
     - ip_address: The IP address to unblock
     """
     ip_address = ip_address.strip()
+    blocked_ips = db_utils.get_blocked_ips_db()
 
-    if ip_address not in _blocked_ips:
+    if ip_address not in blocked_ips:
         return json.dumps({
             "status": "not_found",
             "message": f"IP {ip_address} is not in the block list.",
         })
 
-    _blocked_ips.discard(ip_address)
+    db_utils.unblock_ip_db(ip_address)
+    blocked_ips = db_utils.get_blocked_ips_db()
 
     return json.dumps({
         "status": "unblocked",
         "message": f"IP {ip_address} has been UNBLOCKED.",
-        "total_blocked": len(_blocked_ips),
+        "total_blocked": len(blocked_ips),
     })
 
 
@@ -250,9 +240,10 @@ def get_blocked_ips_list() -> str:
     """Get the current list of all blocked IP addresses.
     Returns the full block list with count.
     """
+    blocked_ips = db_utils.get_blocked_ips_db()
     return json.dumps({
-        "total_blocked": len(_blocked_ips),
-        "blocked_ips": list(_blocked_ips),
+        "total_blocked": len(blocked_ips),
+        "blocked_ips": list(blocked_ips),
     })
 
 
@@ -261,10 +252,12 @@ def get_alerts_list() -> str:
     """Get all security alerts that have been triggered.
     Returns the full alert history with timestamps, severity, and details.
     """
+    alerts_list = db_utils.get_all_logs()
+    active_count = db_utils.get_active_logs_count()
     return json.dumps({
-        "total_alerts": len(_alerts_list),
-        "active_alerts": len([a for a in _alerts_list if a["status"] == "ACTIVE"]),
-        "alerts": _alerts_list[-20:],  # Last 20 alerts
+        "total_alerts": len(alerts_list),
+        "active_alerts": active_count,
+        "alerts": alerts_list[:20],  # Last 20 alerts
     }, ensure_ascii=False, indent=2)
 
 

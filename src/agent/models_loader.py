@@ -28,15 +28,15 @@ class ModelsLoader:
         print("[*] Loading ML models...")
 
         # Stage 0 — Isolation Forest (anomaly detection)
-        self.stage0 = joblib.load(MODELS_DIR / "stage0.pkl")
+        self.stage0 = joblib.load(MODELS_DIR / "stage0.pkl", mmap_mode='r')
 
         # Stage 1 — Binary classifier (Benign vs Malicious)
-        self.stage1_xgb = joblib.load(MODELS_DIR / "stage1_xgb.pkl")
-        self.stage1_rf = joblib.load(MODELS_DIR / "stage1_rf.pkl")
+        self.stage1_xgb = joblib.load(MODELS_DIR / "stage1_xgb.pkl", mmap_mode='r')
+        self.stage1_rf = joblib.load(MODELS_DIR / "stage1_rf.pkl", mmap_mode='r')
 
         # Stage 2 — Multiclass classifier (attack type)
-        self.stage2_xgb, self.stage2_encoder = joblib.load(MODELS_DIR / "stage2_xgb.pkl")
-        self.stage2_rf, _ = joblib.load(MODELS_DIR / "stage2_rf.pkl")
+        self.stage2_xgb, self.stage2_encoder = joblib.load(MODELS_DIR / "stage2_xgb.pkl", mmap_mode='r')
+        self.stage2_rf, _ = joblib.load(MODELS_DIR / "stage2_rf.pkl", mmap_mode='r')
 
         self._loaded = True
         print("[+] All models loaded successfully!")

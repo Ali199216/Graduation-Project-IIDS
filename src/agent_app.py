@@ -25,6 +25,11 @@ from preprocessing import clean_features
 from agent.models_loader import models
 from agent.agent import create_agent
 from agent import tools as agent_tools
+import db_utils
+from visuals import render_visualizations, render_global_threat_map, render_top_countries
+from explain_utils import explain_prediction
+
+db_utils.init_db()
 
 # ---- Page Config ----
 st.set_page_config(
@@ -287,21 +292,23 @@ def load_sample_pool():
 sample_pool = load_sample_pool()
 
 # ---- Session State ----
-if "alerts" not in st.session_state:
-    st.session_state.alerts = []
-if "blocked_ips" not in st.session_state:
-    st.session_state.blocked_ips = set()
+st.session_state.alerts = db_utils.get_all_logs(limit=100)
+st.session_state.blocked_ips = db_utils.get_blocked_ips_db()
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "total_analyzed" not in st.session_state:
-    st.session_state.total_analyzed = 0
-if "total_malicious" not in st.session_state:
-    st.session_state.total_malicious = 0
+    st.session_state.total_analyzed = db_utils.get_total_malicious_count() # Baseline
+st.session_state.total_malicious = db_utils.get_total_malicious_count()
 
-# Share state with tools
-agent_tools.set_shared_state(st.session_state.alerts, st.session_state.blocked_ips)
+if "upload_success" in st.session_state:
+    st.success(st.session_state.upload_success)
+    del st.session_state.upload_success
+
+# Share state with tools (No longer needed since tools use DB)
+# agent_tools.set_shared_state(st.session_state.alerts, st.session_state.blocked_ips)
 
 # ---- Agent (cached) ----
 @st.cache_resource
@@ -344,8 +351,7 @@ with st.sidebar:
         st.toast("🚨 EMERGENCY MODE ENGAGED. Securing active perimeter...", icon="🚨")
         for a in st.session_state.alerts:
             if a.get("severity") in ["CRITICAL", "HIGH"]:
-                st.session_state.blocked_ips.add(a.get("src_ip"))
-        agent_tools.set_shared_state(st.session_state.alerts, st.session_state.blocked_ips)
+                db_utils.block_ip_db(a.get("src_ip"))
         st.rerun()
 
     # 3. Monitoring Controls
@@ -357,13 +363,11 @@ with st.sidebar:
     if st.button("📜 Show System Logs", key="btn_logs", use_container_width=True):
         st.toast("Fetching Deep System Logs...", icon="ℹ️")
     if st.button("🗑️ Purge System Data", key="btn_purge", use_container_width=True):
-        st.session_state.alerts = []
-        st.session_state.blocked_ips = set()
+        db_utils.clear_db()
         st.session_state.messages = []
         st.session_state.chat_history = []
         st.session_state.total_analyzed = 0
         st.session_state.total_malicious = 0
-        agent_tools.set_shared_state(st.session_state.alerts, st.session_state.blocked_ips)
         st.rerun()
 
     # Apply Sidebar Custom CSS
@@ -407,7 +411,7 @@ with st.sidebar:
 
 
 # ---- Main Tabs ----
-tab_dashboard, tab_chat, tab_manual = st.tabs(["📊 Dashboard", "🤖 Chat", "🛠️ Manual Analysis"])
+tab_dashboard, tab_chat, tab_manual, tab_corporate = st.tabs(["📊 Dashboard", "🤖 Chat", "🛠️ Manual Analysis", "🏢 Corporate Portal"])
 
 
 # ==============================
@@ -478,6 +482,9 @@ with tab_dashboard:
                                     <span>Score: <strong style="color: #e6edf3;">{alert.get('anomaly_score', 0):.3f}</strong></span>
                                     <span>Prob: <strong style="color: #e6edf3;">{alert.get('malicious_probability', 0):.3f}</strong></span>
                                 </div>
+                                <div style="font-size: 12px; color: #f2cc60; margin-top: 8px; font-style: italic;">
+                                    {alert.get('shap_explanation', '')}
+                                </div>
                                 <div style="font-size: 11px; color: #484f58; margin-top: 8px;">
                                     🕒 {alert.get('timestamp')}
                                 </div>
@@ -487,8 +494,7 @@ with tab_dashboard:
                             st.markdown("<div style='height: 38px;'></div>", unsafe_allow_html=True)
                             if alert["src_ip"] not in st.session_state.blocked_ips:
                                 if st.button("🚫 Block IP", key=f"dash_blk_{alert['id']}_{idx}", type="primary", use_container_width=True):
-                                    st.session_state.blocked_ips.add(alert["src_ip"])
-                                    agent_tools.set_shared_state(st.session_state.alerts, st.session_state.blocked_ips)
+                                    db_utils.block_ip_db(alert["src_ip"])
                                     st.rerun()
                             else:
                                 st.markdown("""
@@ -532,8 +538,7 @@ with tab_dashboard:
                         bc1, bc2 = st.columns([1, 1.2])
                         with bc2:
                             if st.button("🔓 Unblock", key=f"dash_unblock_{ip}_{idx}", use_container_width=True):
-                                st.session_state.blocked_ips.discard(ip)
-                                agent_tools.set_shared_state(st.session_state.alerts, st.session_state.blocked_ips)
+                                db_utils.unblock_ip_db(ip)
                                 st.rerun()
                         st.markdown("<hr style='border: none; margin: 5px 0;'>", unsafe_allow_html=True)
             else:
@@ -541,71 +546,20 @@ with tab_dashboard:
 
     st.divider()
     
-    # ROW 3: Threat Analytics
+    # ROW 3: Threat Analytics & Activity Timeline UI (Plotly)
     st.markdown("### 📊 Threat Analytics")
-    ta1, ta2 = st.columns([1, 1])
-    
-    with ta1:
-        st.markdown("<h4 style='color: #8b949e; font-size: 14px; text-align: center;'>Attack Signatures</h4>", unsafe_allow_html=True)
-        if st.session_state.alerts:
-            attack_counts = {}
-            for a in st.session_state.alerts:
-                at = a["attack_type"]
-                attack_counts[at] = attack_counts.get(at, 0) + 1
-            chart_df = pd.DataFrame(list(attack_counts.items()), columns=["Attack", "Count"])
-            st.bar_chart(chart_df.set_index("Attack"), use_container_width=True, color="#ff4d4d")
-        else:
-            st.info("Insufficient data to generate attack distribution chart.")
-
-    with ta2:
-        st.markdown("<h4 style='color: #8b949e; font-size: 14px; text-align: center;'>Traffic Status Overview</h4>", unsafe_allow_html=True)
-        if st.session_state.total_analyzed > 0:
-            import altair as alt
-            benign_count = max(0, st.session_state.total_analyzed - st.session_state.total_malicious)
-            pie_data = pd.DataFrame({
-                "Category": ["Malicious", "Benign"],
-                "Count": [st.session_state.total_malicious, benign_count]
-            })
-            
-            chart = alt.Chart(pie_data).mark_arc(innerRadius=60).encode(
-                theta=alt.Theta(field="Count", type="quantitative"),
-                color=alt.Color(field="Category", type="nominal", scale=alt.Scale(domain=["Malicious", "Benign"], range=["#ff4d4d", "#58a6ff"])),
-                tooltip=["Category", "Count"]
-            ).properties(height=350).configure_view(strokeWidth=0).configure(background="transparent")
-            
-            st.altair_chart(chart, use_container_width=True)
-        else:
-            st.info("No traffic analyzed yet.")
-
+    render_visualizations()
     st.divider()
 
-    # ROW 4: Activity Timeline
-    st.markdown("### 📈 Activity Timeline")
-    if st.session_state.alerts:
-        try:
-            df_alerts = pd.DataFrame(st.session_state.alerts)
-            df_alerts["timestamp"] = pd.to_datetime(df_alerts["timestamp"])
-            timeline = df_alerts.set_index("timestamp").resample("1min").size()
-            
-            import altair as alt
-            timeline_df = timeline.reset_index()
-            timeline_df.columns = ["Time", "Alerts"]
-            
-            line_chart = alt.Chart(timeline_df).mark_area(
-                line={"color": "#f2cc60"}, color=alt.Gradient(
-                    gradient="linear", stops=[alt.GradientStop(color="#f2cc60", offset=0), alt.GradientStop(color="transparent", offset=1)], x1=1, x2=1, y1=0, y2=1
-                )
-            ).encode(
-                x=alt.X("Time:T", title="Time"),
-                y=alt.Y("Alerts:Q", title="Alert Count"),
-                tooltip=["Time:T", "Alerts"]
-            ).properties(height=300).configure_view(strokeWidth=0).configure(background="transparent")
-            
-            st.altair_chart(line_chart, use_container_width=True)
-        except Exception:
-            st.info("Insufficient data resolution for timeline.")
-    else:
-        st.info("No timeline data currently available.")
+    # ROW 4: Global Threat Intelligence
+    st.markdown("### 🌍 Global Threat Intelligence")
+    col_map, col_countries = st.columns([7, 3])
+    with col_map:
+        render_global_threat_map()
+    with col_countries:
+        st.markdown("<h4 style='color: #8b949e; font-size: 14px; text-align: center;'>Top Attacking Countries</h4>", unsafe_allow_html=True)
+        render_top_countries()
+    st.divider()
 
 
 # ==============================
@@ -893,11 +847,17 @@ with tab_manual:
             severity = "CRITICAL" if malicious_prob > 0.85 else "HIGH"
             card_border = "#ff4d4d" if severity == "CRITICAL" else "#f2cc60"
 
+            # SHAP Explanation Feature
+            shap_explanation = explain_prediction(loaded_models.stage1_xgb, flow)
+
             st.markdown(f"""
             <div class="cyber-card alert-{severity}">
                 <h3 style="color: {card_border}; margin-top: 0;">MALICIOUS TRAFFIC DETECTED</h3>
                 <p><b>Attack Paradigm:</b> {attack_name}</p>
                 <p style="color: #8b949e;">{ATTACK_DESCRIPTIONS.get(attack_name, '')}</p>
+                <div style="background: rgba(255,100,100,0.1); padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 13px;">
+                    <b>🎯 AI Explanation:</b> {shap_explanation}
+                </div>
                 <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; margin-top: 15px;">
                     <b>Source Routing:</b> <code>{st.session_state.m_src_ip}:{st.session_state.m_src_port}</code> &nbsp;➔&nbsp; <b>Dest Routing:</b> <code>{st.session_state.m_dst_ip}:{st.session_state.m_dst_port}</code>
                 </div>
@@ -906,7 +866,6 @@ with tab_manual:
 
             # Auto-create alert
             alert = {
-                "id": len(st.session_state.alerts) + 1,
                 "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "src_ip": st.session_state.m_src_ip,
                 "dst_ip": st.session_state.m_dst_ip,
@@ -916,16 +875,18 @@ with tab_manual:
                 "malicious_probability": malicious_prob,
                 "details": f"Port {st.session_state.m_src_port}->{st.session_state.m_dst_port}, {st.session_state.m_in_bytes}B / {st.session_state.m_out_bytes}B",
                 "status": "ACTIVE",
+                "shap_explanation": shap_explanation
             }
-            st.session_state.alerts.append(alert)
-            st.warning(f"System Alert #{alert['id']} broadcasted - [{severity}] severity!")
+            
+            db_utils.save_attack_to_db(alert)
+            st.session_state.alerts.insert(0, alert)
+            st.warning(f"System Alert #{alert.get('id', 'N/A')} broadcasted - [{severity}] severity!")
 
             # Block action
             if st.session_state.m_src_ip not in st.session_state.blocked_ips:
                 st.markdown("<br>", unsafe_allow_html=True)
                 if st.button(f"Enforce IP Ban ( {st.session_state.m_src_ip} )"):
-                    st.session_state.blocked_ips.add(st.session_state.m_src_ip)
-                    agent_tools.set_shared_state(st.session_state.alerts, st.session_state.blocked_ips)
+                    db_utils.block_ip_db(st.session_state.m_src_ip)
                     st.success(f"Quarantine enforced for {st.session_state.m_src_ip}")
                     st.rerun()
             else:
@@ -1014,3 +975,411 @@ with tab_manual:
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
+
+# ==============================
+#  TAB 4: CORPORATE PORTAL
+# ==============================
+with tab_corporate:
+    st.markdown("## 🏢 Corporate Intelligence & Reporting Portal")
+    
+    # Part 2: Executive Dashboard
+    st.markdown("### 📈 Executive Analytics Dashboard")
+    dash_col1, dash_col2 = st.columns([1, 1])
+    
+    import plotly.graph_objects as go
+    import db_utils
+    conn = db_utils.get_db_connection()
+    df_logs = pd.read_sql_query("SELECT * FROM attack_logs", conn)
+    
+    # Speedometer Gauge
+    with dash_col1:
+        st.markdown("<h4 style='color: #8b949e; font-size: 14px; text-align: center;'>Current Threat Level</h4>", unsafe_allow_html=True)
+        total_a = st.session_state.total_analyzed
+        total_m = st.session_state.total_malicious
+        ratio = (total_m / total_a * 100) if total_a > 0 else 0
+        
+        fig_gauge = go.Figure(go.Indicator(
+            mode = "gauge+number",
+            value = ratio,
+            title = {'text': "% Malicious Traffic", 'font': {'color': '#e6edf3'}},
+            gauge = {
+                'axis': {'range': [None, 100], 'tickcolor': "#30363d"},
+                'bar': {'color': "rgba(255, 77, 77, 0.8)"},
+                'bgcolor': "rgba(0,0,0,0)",
+                'steps': [
+                    {'range': [0, 20], 'color': "rgba(46, 160, 67, 0.2)"},
+                    {'range': [20, 60], 'color': "rgba(242, 204, 96, 0.2)"},
+                    {'range': [60, 100], 'color': "rgba(255, 77, 77, 0.2)"}],
+            }
+        ))
+        fig_gauge.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='#e6edf3', height=300, margin=dict(l=10, r=10, t=30, b=10))
+        st.plotly_chart(fig_gauge, use_container_width=True)
+
+    with dash_col2:
+        st.markdown("<h4 style='color: #8b949e; font-size: 14px; text-align: center;'>Attack Vector Distribution</h4>", unsafe_allow_html=True)
+        if not df_logs.empty:
+            df_pie = df_logs.groupby('attack_type').size().reset_index(name='count')
+            import plotly.express as px
+            # Color map matching
+            color_map = {
+                'DoS': '#ff4d4d', 'Exploits': '#f28c28', 'Worms': '#e63946',
+                'Reconnaissance': '#58a6ff', 'Backdoor': '#8b949e', 'Generic': '#2ea043',
+                'Fuzzers': '#a371f7', 'Shellcode': '#f85149', 'Analysis': '#79c0ff', 'Unknown': '#ffffff', 'Probe': '#ffcc00'
+            }
+            fig_pie = px.pie(df_pie, values='count', names='attack_type', hole=0.4, color='attack_type', color_discrete_map=color_map)
+            fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='#e6edf3', height=300, margin=dict(l=10, r=10, t=10, b=10))
+            st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("No logs generated to display distribution.")
+
+    st.markdown("#### 🌍 Top Offenders")
+    if not df_logs.empty:
+        df_top = df_logs.groupby(['country', 'src_ip']).size().reset_index(name='Attack Count').sort_values(by='Attack Count', ascending=False).head(5)
+        st.dataframe(df_top, use_container_width=True, hide_index=True)
+    else:
+        st.info("No data.")
+        
+    st.divider()
+    
+    # Part 3: PDF Builder & Export
+    st.markdown("### 📄 Professional PDF Export")
+    from report_utils import generate_executive_pdf
+    import datetime
+    
+    if st.button("🔧 Generate Executive Security Report", type="primary"):
+        with st.spinner("Compiling database matrices and metrics..."):
+            # Identify recent payload tracking
+            pdf_flows = st.session_state.get('last_upload_total_flows', st.session_state.total_analyzed)
+            pdf_malicious = st.session_state.get('last_upload_malicious', st.session_state.total_malicious)
+            
+            top_country = "Unknown"
+            top_attack = "Unknown"
+            if not df_logs.empty:
+                try: 
+                    top_country = df_logs['country'].value_counts().idxmax()
+                    top_attack = df_logs['attack_type'].value_counts().idxmax()
+                except Exception:
+                    pass
+            
+            # Slice latest logs to current malicious count to represent final payload
+            df_recent = df_logs.tail(pdf_malicious) if pdf_malicious > 0 else df_logs
+            critical_logs = [row.to_dict() for index, row in df_recent.iterrows() if row.get('severity') in ['CRITICAL', 'HIGH']]
+            
+            pdf_bytes = generate_executive_pdf(pdf_flows, pdf_malicious, st.session_state.blocked_ips, critical_logs, top_country, top_attack)
+            
+            st.download_button(
+                label="📥 Download Generated PDF Report",
+                data=bytes(pdf_bytes),
+                file_name=f"IIDS_Security_Report_{datetime.datetime.now().strftime('%Y%m%d')}.pdf",
+                mime="application/pdf"
+            )
+
+    st.divider()
+
+    # Part 1: Live SOC Monitoring Dashboard
+    st.markdown("### 📡 Live SOC Monitoring Dashboard")
+    
+    col_health1, col_health2, col_health3 = st.columns(3)
+    with col_health1:
+        st.markdown("<div class='cyber-card' style='text-align: center; border-left: 4px solid #3fb950; padding: 15px;'><h4 style='margin:0; color:#8b949e; font-size:14px;'>Firewall</h4><h3 style='margin:0; color:#3fb950;'>CONNECTED</h3></div>", unsafe_allow_html=True)
+    with col_health2:
+        st.markdown("<div class='cyber-card' style='text-align: center; border-left: 4px solid #3fb950; padding: 15px;'><h4 style='margin:0; color:#8b949e; font-size:14px;'>Main Server</h4><h3 style='margin:0; color:#3fb950;'>MONITORED</h3></div>", unsafe_allow_html=True)
+    with col_health3:
+        st.markdown("<div class='cyber-card' style='text-align: center; border-left: 4px solid #3fb950; padding: 15px;'><h4 style='margin:0; color:#8b949e; font-size:14px;'>Database</h4><h3 style='margin:0; color:#3fb950;'>SECURE</h3></div>", unsafe_allow_html=True)
+        
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    with st.expander("⚙️ Corporate System API Integration"):
+        st.text_input("Company Endpoint URL", placeholder="https://api.company.com/v1/sec-alerts")
+        st.text_input("API Auth Key", type="password", placeholder="SEC-XXXX-XXXX")
+        
+    template_df = pd.DataFrame(columns=FEATURES)
+    csv_template = template_df.to_csv(index=False).encode('utf-8')
+    st.download_button(label="📥 Download Template CSV", data=csv_template, file_name="IIDS_template.csv", mime="text/csv")
+    
+    st.info("**Required Features for Analysis:** `IPV4_SRC_ADDR`, `IPV4_DST_ADDR`, `L4_SRC_PORT`, `PROTOCOL`, `IN_BYTES`, `OUT_BYTES`, `IN_PKTS`, `OUT_PKTS`, `TCP_FLAGS`, `FLOW_DURATION_MILLISECONDS`. Missing analytical features will be defaulted to 0.")
+    
+    uploaded_file = st.file_uploader("Upload Network Traffic Data (CSV) for Live Monitoring", type=['csv'])
+    
+    if uploaded_file is not None:
+        try:
+            st.session_state.uploaded_df = pd.read_csv(uploaded_file)
+        except:
+            pass
+            
+    if "uploaded_df" in st.session_state and st.session_state.uploaded_df is not None:
+        col_btn1, col_btn2 = st.columns([1, 1])
+        with col_btn1:
+            start_scan = st.button("🚀 Initialize Live Feed", type="primary", use_container_width=True)
+        with col_btn2:
+            stop_scan = st.button("🛑 HALT MONITORING", use_container_width=True)
+            
+        if stop_scan:
+            st.session_state.stop_scan = True
+            
+        if start_scan:
+            st.session_state.stop_scan = False
+            try:
+                df_upload = st.session_state.uploaded_df.copy()
+                from preprocessing import prepare_data_for_prediction
+                df_upload = prepare_data_for_prediction(df_upload, FEATURES)
+                X_clean = clean_features(df_upload, FEATURES)
+
+                st.markdown("---")
+                
+                # CSS Injection for Live SOC theme
+                st.markdown("""
+                <style>
+                    /* Base typography for SOC */
+                    p, span, h1, h2, h3, h4 { font-family: 'Inter', Courier, monospace; }
+                    
+                    /* Metric Value & Label Fonts */
+                    div[data-testid="stMetricValue"] > div,
+                    div[data-testid="stMetricLabel"] > div > p {
+                        font-family: 'Roboto Mono', 'Share Tech Mono', 'Courier New', monospace !important;
+                        font-weight: bold !important;
+                        text-align: center !important;
+                    }
+                    
+                    div[data-testid="stMetricLabel"] > div > p {
+                        color: #FFFFFF !important;
+                    }
+
+                    /* Base Metric Container Force Style */
+                    div[data-testid="metric-container"] {
+                        background-color: #0e1117 !important;
+                        padding: 15px !important;
+                        border-radius: 15px !important;
+                        border: 2px solid #444 !important;
+                        text-align: center !important;
+                    }
+
+                    /* Box 1 (Flows): Neon Blue */
+                    div[data-testid="column"]:nth-of-type(1) div[data-testid="metric-container"] {
+                        border-color: #00D4FF !important;
+                        box-shadow: 0px 0px 15px rgba(0, 212, 255, 0.2) !important;
+                    }
+                    div[data-testid="column"]:nth-of-type(1) div[data-testid="stMetricValue"] > div {
+                        color: #00D4FF !important;
+                    }
+
+                    /* Box 2 (Threats): Neon Red */
+                    div[data-testid="column"]:nth-of-type(2) div[data-testid="metric-container"] {
+                        border-color: #FF4B4B !important;
+                        box-shadow: 0px 0px 15px rgba(255, 75, 75, 0.3) !important;
+                    }
+                    div[data-testid="column"]:nth-of-type(2) div[data-testid="stMetricValue"] > div {
+                        color: #FF4B4B !important;
+                    }
+
+                    /* Box 3 (Blocked): Neon Green */
+                    div[data-testid="column"]:nth-of-type(3) div[data-testid="metric-container"] {
+                        border-color: #00FF41 !important;
+                        box-shadow: 0px 0px 15px rgba(0, 255, 65, 0.3) !important;
+                    }
+                    div[data-testid="column"]:nth-of-type(3) div[data-testid="stMetricValue"] > div {
+                        color: #00FF41 !important;
+                    }
+                </style>
+                """, unsafe_allow_html=True)
+                
+                # STATUS HEADER
+                st.markdown("<h3 style='color: #00ff00; text-align: center; text-shadow: 0 0 15px rgba(0,255,0,0.8); letter-spacing: 3px;'>[ SYSTEM STATUS: ACTIVE SURVEILLANCE ]</h3>", unsafe_allow_html=True)
+                
+                # PROGRESS BAR
+                progress_bar = st.progress(0)
+                ph_status = st.empty()
+                
+                # TOP SECTION (Metrics)
+                st.markdown("#### 📊 Real-Time Metrics Table")
+                m_col1, m_col2, m_col3 = st.columns(3)
+                ph_total_scanned = m_col1.empty()
+                ph_active_threats = m_col2.empty()
+                ph_blocked = m_col3.empty()
+                
+                ph_total_scanned.metric("Flows Analyzed", 0)
+                ph_active_threats.metric("Threats Detected", 0)
+                ph_blocked.metric("Total IPs Blocked", 0)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # MIDDLE SECTION (The Radar)
+                st.markdown("#### 🌍 Live Threat Radar")
+                ph_map = st.empty()
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # BOTTOM SECTION (The Streaming Feed + Log)
+                st.markdown("#### 📡 Streaming Feed & Logs")
+                feed_col, log_col = st.columns([7, 3])
+                with feed_col:
+                    ph_feed = st.empty()
+                with log_col:
+                    ph_cmd_log = st.empty()
+                    
+                total_rows = len(df_upload)
+                malicious_added = 0
+                assets_shielded = 0
+                recent_flows = []
+                cmd_logs = []
+                live_alerts = []
+                
+                import time
+                import pydeck as pdk
+                import random
+                
+                for i, row in df_upload.iterrows():
+                    if st.session_state.get('stop_scan', False):
+                        break
+                        
+                    flow_dict = row.to_dict()
+                    
+                    try:
+                        x_input = X_clean.iloc[[i]].values
+                        
+                        # Correct pipeline based on manual logic
+                        anomaly_score = float(-loaded_models.stage0.decision_function(x_input)[0])
+                        stage0_flag = anomaly_score >= ANOMALY_THRESHOLD
+                        
+                        if hasattr(loaded_models.stage1_xgb, "predict_proba"):
+                            malicious_prob = float(loaded_models.stage1_xgb.predict_proba(x_input)[0, 1])
+                        else:
+                            malicious_prob = float(loaded_models.stage1_xgb.predict(x_input)[0])
+                            
+                        stage1_flag = malicious_prob >= STAGE1_THRESHOLD
+                        is_malicious = stage0_flag or stage1_flag
+                        
+                        st.session_state.total_analyzed += 1
+                        severity = "NORMAL"
+                        attack_name = "Benign"
+                        src_ip = str(flow_dict.get('IPV4_SRC_ADDR', f"192.168.1.{i%255}"))
+                        
+                        if is_malicious:
+                            st.session_state.total_malicious += 1
+                            malicious_added += 1
+                            
+                            try:
+                                attack_class_idx = loaded_models.stage2_xgb.predict(x_input)[0]
+                                attack_name = loaded_models.stage2_encoder.inverse_transform([attack_class_idx])[0]
+                            except Exception:
+                                attack_name = ["DoS", "Exploits", "Generic", "Others", "Reconnaissance", "Probe", "Worms"][int(attack_class_idx) % 7] if 'attack_class_idx' in locals() else "Threat"
+                                
+                            severity = "CRITICAL" if malicious_prob > 0.85 else "HIGH"
+                            shap_explanation = "Real-time threat heuristics matched."
+                            alert = {
+                                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                "src_ip": src_ip,
+                                "dst_ip": str(flow_dict.get('IPV4_DST_ADDR', "10.0.0.1")),
+                                "attack_type": attack_name,
+                                "severity": severity,
+                                "anomaly_score": anomaly_score,
+                                "malicious_probability": malicious_prob,
+                                "details": f"Live Stream Auto-Log",
+                                "status": "ACTIVE",
+                                "shap_explanation": shap_explanation
+                            }
+                            
+                            # Real-time DB save
+                            db_utils.save_attack_to_db(alert)
+                            st.session_state.alerts.insert(0, alert)
+                            
+                            alert['lat'] = random.uniform(20.0, 50.0)
+                            alert['lon'] = random.uniform(-120.0, 50.0)
+                            live_alerts.append(alert)
+                            
+                            # Simulated API Push / Blocking
+                            if src_ip not in st.session_state.blocked_ips:
+                                db_utils.block_ip_db(src_ip)
+                                st.session_state.blocked_ips.add(src_ip)
+                                assets_shielded += 1
+                                
+                            cmd_logs.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [INFO] Sending BLOCK command for IP {src_ip}... [SUCCESS]")
+                                
+                        # Update Recent Flows for Feed
+                        flow_visual = {
+                            "Time": datetime.datetime.now().strftime("%H:%M:%S"),
+                            "Source IP": src_ip,
+                            "Dest IP": flow_dict.get('IPV4_DST_ADDR', "10.0.0.1"),
+                            "Protocol": PROTOCOL_NAMES.get(flow_dict.get('PROTOCOL', 6), "Unknown"),
+                            "Status": "🔴 MALICIOUS" if is_malicious else "🟢 BENIGN"
+                        }
+                        recent_flows.append(flow_visual)
+                        if len(recent_flows) > 5:
+                            recent_flows.pop(0)
+                            
+                        if len(cmd_logs) > 6:
+                            cmd_logs.pop(0)
+                        
+                        # UI Updates
+                        ph_total_scanned.metric("Flows Analyzed", i + 1)
+                        ph_active_threats.metric("Threats Detected", malicious_added)
+                        ph_blocked.metric("Total IPs Blocked", assets_shielded)
+                        
+                        progress_bar.progress(min((i + 1) / total_rows, 1.0))
+                        ph_status.text(f"Monitoring Row {i+1} / {total_rows}...")
+                        
+                        def color_threats(row_data):
+                            if "MALICIOUS" in row_data['Status']:
+                                return ['background-color: rgba(255, 0, 0, 0.3); color: #ff5555; border-bottom: 1px solid red; font-weight: bold'] * len(row_data)
+                            else:
+                                return ['background-color: transparent; color: #00ff00; border-bottom: 1px solid #00ff00'] * len(row_data)
+
+                        df_feed = pd.DataFrame(recent_flows)[::-1]
+                        styled_df = df_feed.style.apply(color_threats, axis=1)
+                        ph_feed.dataframe(styled_df, use_container_width=True, hide_index=True)
+                        
+                        log_str = "\n".join(cmd_logs)
+                        if not log_str:
+                            log_str = "System active..."
+                        
+                        # Use markdown/code to avoid DuplicateWidgetID issues in loop
+                        ph_cmd_log.markdown(f"```bash\n{log_str}\n```")
+                        
+                        # Render Live UI map if there are alerts
+                        if live_alerts:
+                            map_data = pd.DataFrame(live_alerts)
+                            layer = pdk.Layer(
+                                'ScatterplotLayer',
+                                data=map_data,
+                                get_position='[lon, lat]',
+                                get_color=[255, 0, 0, 255],
+                                get_radius=180000,
+                                pickable=True,
+                                auto_highlight=True,
+                                radius_min_pixels=15,
+                                radius_max_pixels=20
+                            )
+                            pulse = pdk.Layer(
+                                'ScatterplotLayer',
+                                data=map_data,
+                                get_position='[lon, lat]',
+                                get_color=[255, 0, 0, 60],
+                                get_radius=500000,
+                                pickable=False,
+                            )
+                            static_view = pdk.ViewState(latitude=20.0, longitude=0.0, zoom=1, pitch=0)
+                            
+                            ph_map.pydeck_chart(pdk.Deck(
+                                layers=[pulse, layer], 
+                                initial_view_state=static_view, 
+                                map_style=pdk.map_styles.CARTO_DARK_MATTER
+                            ))
+                        else:
+                            ph_map.pydeck_chart(pdk.Deck(
+                                initial_view_state=pdk.ViewState(latitude=20.0, longitude=0.0, zoom=1, pitch=0),
+                                map_style=pdk.map_styles.CARTO_DARK_MATTER
+                            ))
+                        
+                        time.sleep(0.3)
+
+                    except Exception as e:
+                        print(f"Live loop error on row {i}: {e}")
+                        pass
+                        
+                if not st.session_state.get('stop_scan', False):
+                    ph_status.text(f"Scanning Complete. System Active.")
+                st.session_state.last_upload_total_flows = total_rows
+                st.session_state.last_upload_malicious = malicious_added
+            except Exception as e:
+                st.error(f"Live stream processing error: {e}")

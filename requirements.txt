@@ -9,3 +9,7 @@ langchain>=0.3
 langchain-groq>=0.3
 langchain-core>=0.3
 python-dotenv>=1.0
+shap>=0.40.0
+plotly>=5.0.0
+folium>=0.14.0
+streamlit-folium>=0.13.0
