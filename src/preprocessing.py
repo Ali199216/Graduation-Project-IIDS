@@ -3,9 +3,21 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
 def clean_features(df, features):
-    X = df[features].replace([np.inf, -np.inf], np.nan)
+    """Clean and validate features for ML model input."""
+    # Ensure ALL expected features exist (fill missing with 0)
+    for f in features:
+        if f not in df.columns:
+            df[f] = 0.0
+    
+    # Select ONLY the expected features in the correct order (by name, not index)
+    X = df[features].copy()
+    X = X.replace([np.inf, -np.inf], np.nan)
     X = X.fillna(0)
     X = X.clip(-1e9, 1e9)
+    
+    # Debug: log shape for model input validation
+    print(f"[DEBUG] clean_features output shape: {X.shape} (expected {len(features)} columns)")
+    
     return X.astype(np.float32)
 
 def prepare_data_for_prediction(df, features):

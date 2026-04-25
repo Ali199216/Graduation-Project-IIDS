@@ -40,50 +40,71 @@ def _build_dataframe(flow_dict: dict) -> pd.DataFrame:
 
 def _run_pipeline(flow_dict: dict) -> dict:
     """Run the full Stage0 + Stage1 + Stage2 pipeline on a flow."""
-    models.load()
+    try:
+        models.load()
 
-    raw_df = _build_dataframe(flow_dict)
-    X = clean_features(raw_df, FEATURES)
+        raw_df = _build_dataframe(flow_dict)
+        X = clean_features(raw_df, FEATURES)
+        
+        print(f"[DEBUG] Pipeline input shape: {X.shape}")
 
-    # Stage 0 - Anomaly detection
-    anomaly_score = float(-models.stage0.decision_function(X)[0])
-    stage0_flag = anomaly_score >= ANOMALY_THRESHOLD
+        # Stage 0 - Anomaly detection
+        anomaly_score = float(-models.stage0.decision_function(X)[0])
+        stage0_flag = anomaly_score >= ANOMALY_THRESHOLD
 
-    # Stage 1 - Binary classification
-    if hasattr(models.stage1_xgb, "predict_proba"):
-        malicious_prob = float(models.stage1_xgb.predict_proba(X)[0, 1])
-    else:
-        malicious_prob = float(models.stage1_xgb.predict(X)[0])
-    stage1_flag = malicious_prob >= STAGE1_THRESHOLD
+        # Stage 1 - Binary classification
+        if hasattr(models.stage1_xgb, "predict_proba"):
+            malicious_prob = float(models.stage1_xgb.predict_proba(X)[0, 1])
+        else:
+            malicious_prob = float(models.stage1_xgb.predict(X)[0])
+        stage1_flag = malicious_prob >= STAGE1_THRESHOLD
 
-    is_malicious = stage0_flag or stage1_flag
+        is_malicious = stage0_flag or stage1_flag
 
-    result = {
-        "verdict": "MALICIOUS" if is_malicious else "BENIGN",
-        "is_malicious": is_malicious,
-        "anomaly_score": round(anomaly_score, 4),
-        "anomaly_flag": stage0_flag,
-        "malicious_probability": round(malicious_prob, 4),
-        "stage1_flag": stage1_flag,
-    }
+        result = {
+            "verdict": "MALICIOUS" if is_malicious else "BENIGN",
+            "is_malicious": is_malicious,
+            "anomaly_score": round(anomaly_score, 4),
+            "anomaly_flag": stage0_flag,
+            "malicious_probability": round(malicious_prob, 4),
+            "stage1_flag": stage1_flag,
+        }
 
-    # Stage 2 - Attack classification (if malicious)
-    if is_malicious:
-        attack_idx = models.stage2_xgb.predict(X)[0]
-        attack_name = models.stage2_encoder.inverse_transform([attack_idx])[0]
-        result["attack_type"] = attack_name
-        result["attack_description"] = ATTACK_DESCRIPTIONS.get(attack_name, "Unknown attack type.")
+        # Stage 2 - Attack classification (if malicious)
+        if is_malicious:
+            try:
+                attack_idx = models.stage2_xgb.predict(X)[0]
+                if models.stage2_encoder is not None:
+                    attack_name = models.stage2_encoder.inverse_transform([int(attack_idx)])[0]
+                else:
+                    attack_name = str(attack_idx)
+                result["attack_type"] = attack_name
+                result["attack_description"] = ATTACK_DESCRIPTIONS.get(attack_name, "Unknown attack type.")
+            except Exception as e:
+                print(f"[!] Stage 2 classification error: {e}")
+                result["attack_type"] = "Unknown"
+                result["attack_description"] = "Could not classify attack type."
 
-    # Feature importance (top 5)
-    if hasattr(models.stage1_xgb, "feature_importances_"):
-        importances = models.stage1_xgb.feature_importances_
-        top_indices = np.argsort(importances)[::-1][:5]
-        result["top_features"] = [
-            {"feature": FEATURES[i], "importance": round(float(importances[i]), 4)}
-            for i in top_indices
-        ]
+        # Feature importance (top 5)
+        if hasattr(models.stage1_xgb, "feature_importances_"):
+            importances = models.stage1_xgb.feature_importances_
+            top_indices = np.argsort(importances)[::-1][:5]
+            result["top_features"] = [
+                {"feature": FEATURES[i], "importance": round(float(importances[i]), 4)}
+                for i in top_indices if i < len(FEATURES)
+            ]
 
-    return result
+        return result
+    
+    except Exception as e:
+        print(f"[!] Pipeline error: {e}")
+        return {
+            "verdict": "ERROR",
+            "is_malicious": False,
+            "anomaly_score": 0.0,
+            "malicious_probability": 0.0,
+            "error": str(e),
+        }
 
 
 def _create_alert(src_ip, dst_ip, attack_type, severity, anomaly_score, malicious_prob, details="", shap_explanation=""):

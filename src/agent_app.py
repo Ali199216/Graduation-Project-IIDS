@@ -87,78 +87,122 @@ st.markdown("""
 # ---- Custom CSS ----
 st.markdown("""
 <style>
-    /* Full DARK CYBER SECURITY THEME */
+    /* Full DARK CYBER SECURITY THEME - NEON HIGH CONTRAST */
     .stApp {
-        background-color: #0d1117;
-        color: #e6edf3;
+        background-color: #050505 !important;
+        color: #FFFFFF !important;
+        font-family: 'Roboto Mono', monospace !important;
     }
     section[data-testid="stSidebar"] {
-        background-color: #161b22 !important;
-        border-right: 1px solid #30363d !important;
+        background-color: #0a0a0a !important;
+        border-right: 1px solid #1a1a1a !important;
     }
     
     /* Cyber Cards */
     .cyber-card {
-        background-color: #161b22;
-        border: 1px solid #30363d;
+        background-color: #121212 !important;
+        border: 2px solid #30363d !important;
         border-radius: 14px;
         padding: 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
         transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     }
-    .cyber-card:hover {
-        box-shadow: 0 6px 16px rgba(0,0,0,0.2);
-        border-color: #58a6ff;
+    
+    /* Glassmorphism Card (Gateway) */
+    .glass-card {
+        background: rgba(18, 18, 18, 0.85) !important;
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 2px solid #00D4FF !important;
+        box-shadow: 0 0 25px rgba(0, 212, 255, 0.5) !important;
+        border-radius: 16px;
+        padding: 30px;
+        transition: all 0.3s ease;
+    }
+    .glass-card:hover {
+        box-shadow: 0 0 40px rgba(0, 212, 255, 0.8) !important;
     }
     
-    /* Alert Styles */
-    .alert-CRITICAL {
-        border-left: 5px solid #ff4d4d;
-        background: linear-gradient(90deg, rgba(255,77,77,0.05) 0%, rgba(22,27,34,1) 100%);
-    }
-    .alert-HIGH {
-        border-left: 5px solid #f2cc60;
-        background: linear-gradient(90deg, rgba(242,204,96,0.05) 0%, rgba(22,27,34,1) 100%);
-    }
-    .alert-NORMAL, .alert-MEDIUM {
-        border-left: 5px solid #58a6ff;
-        background: linear-gradient(90deg, rgba(88,166,255,0.05) 0%, rgba(22,27,34,1) 100%);
+    /* Form Labels */
+    label {
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.5px !important;
     }
     
     /* Inputs */
     .stTextInput input, .stNumberInput input {
-        background-color: #0d1117 !important;
-        color: #e6edf3 !important;
+        background-color: #121212 !important;
+        color: #FFFFFF !important;
         border: 1px solid #30363d !important;
         border-radius: 8px !important;
         padding: 10px !important;
     }
     .stTextInput input:focus, .stNumberInput input:focus {
-        border-color: #58a6ff !important;
-        box-shadow: 0 0 0 1px #58a6ff !important;
+        border: 2px solid #00D4FF !important;
+        box-shadow: 0 0 15px rgba(0, 212, 255, 0.6) !important;
     }
     
     /* Buttons Globally */
     .stButton > button {
-        background-color: #2ea043 !important;
-        color: #ffffff !important;
-        border: 1px solid #3fb950 !important;
+        background-color: #121212 !important;
+        color: #00D4FF !important;
+        border: 2px solid #00D4FF !important;
         border-radius: 8px !important;
         transition: all 0.2s ease !important;
-        font-weight: 600 !important;
+        font-weight: 900 !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
         width: 100%;
         padding: 10px 0 !important;
+        box-shadow: 0 0 10px rgba(0, 212, 255, 0.2) !important;
     }
     .stButton > button:hover {
-        background-color: #3fb950 !important;
-        border-color: #56d364 !important;
-        box-shadow: 0 4px 10px rgba(46, 160, 67, 0.2) !important;
+        background-color: #00D4FF !important;
+        color: #050505 !important;
+        box-shadow: 0 0 20px rgba(0, 212, 255, 0.8) !important;
+    }
+    
+    /* Form Submit Buttons (Solid Neon Blue) */
+    [data-testid="stFormSubmitButton"] > button {
+        background-color: #00D4FF !important;
+        color: #000000 !important;
+        border: none !important;
+        font-weight: 900 !important;
+        font-size: 16px !important;
+        box-shadow: 0 0 15px rgba(0, 212, 255, 0.6) !important;
+    }
+    [data-testid="stFormSubmitButton"] > button:hover {
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
+        box-shadow: 0 0 25px rgba(0, 212, 255, 1) !important;
+    }
+    
+    /* Link Buttons (Tertiary) */
+    .stButton > button[kind="tertiary"] {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        color: #00D4FF !important;
+        font-weight: 800 !important;
+        font-size: 16px !important;
+        text-transform: none !important;
+        letter-spacing: normal !important;
+    }
+    .stButton > button[kind="tertiary"] p {
+        font-size: 16px !important;
+    }
+    .stButton > button[kind="tertiary"]:hover {
+        color: #FFFFFF !important;
+        text-shadow: 0 0 10px #FFFFFF !important;
+        background: transparent !important;
+        box-shadow: none !important;
     }
     
     /* Code blocks / Highlights */
     code {
-        color: #58a6ff;
-        background-color: rgba(88,166,255,0.1);
+        color: #00D4FF;
+        background-color: rgba(0, 212, 255, 0.1);
         padding: 3px 6px;
         border-radius: 6px;
         font-weight: bold;
@@ -265,7 +309,6 @@ def show_alert_with_action(alert):
         if alert["src_ip"] not in st.session_state.blocked_ips:
             if st.button("Block IP", key=f"block_{alert['id']}_{alert['src_ip']}"):
                 st.session_state.blocked_ips.add(alert["src_ip"])
-                agent_tools.set_shared_state(st.session_state.alerts, st.session_state.blocked_ips)
                 st.success(f"IP {alert['src_ip']} blocked!")
                 st.rerun()
         else:
@@ -275,6 +318,188 @@ def show_alert_with_action(alert):
                 'border-radius: 8px; padding: 12px;">🛡️ BLOCKED</div>', 
                 unsafe_allow_html=True)
 
+
+# ---- Landing Page / Entry Point ----
+if "app_launched" not in st.session_state:
+    st.session_state.app_launched = False
+
+if not st.session_state.app_launched:
+    st.markdown("""
+    <style>
+        /* Hide all Streamlit defaults */
+        #MainMenu {visibility: hidden;}
+        header {visibility: hidden;}
+        footer {visibility: hidden;}
+        section[data-testid="stSidebar"] {display: none !important;}
+        
+        .centered-content {
+            text-align: center !important;
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            padding: 60px 40px 50px 40px !important;
+            background-color: #1a1a1a;
+            border-radius: 20px;
+            box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 212, 255, 0.15);
+            border: 1px solid #30363d;
+            margin-top: 50px;
+        }
+        
+        /* This targets the Streamlit div specifically */
+        div[data-testid="stVerticalBlock"] > div {
+            text-align: center !important;
+            align-items: center !important;
+        }
+        
+        /* Title & Subtitle */
+        .landing-title {
+            color: #FFFFFF;
+            font-size: 3.5rem;
+            font-weight: 900;
+            margin: auto !important;
+            margin-bottom: 10px !important;
+            line-height: 1.2;
+            font-family: 'Roboto Mono', sans-serif;
+            letter-spacing: -1px;
+            text-align: center !important;
+        }
+        .landing-subtitle {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.2rem;
+            margin: auto !important;
+            margin-bottom: 40px !important;
+            text-align: center !important;
+        }
+        
+        /* Launch Button Override */
+        [data-testid="stButton"] button {
+            background-color: #00D4FF !important;
+            color: #000000 !important;
+            border-radius: 50px !important;
+            font-weight: 900 !important;
+            font-size: 18px !important;
+            padding: 12px 40px !important;
+            border: none !important;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.8) !important;
+            transition: all 0.3s ease !important;
+            text-transform: none !important;
+            width: auto !important;
+            margin: 0 auto;
+            display: block;
+        }
+        [data-testid="stButton"] button:hover {
+            background-color: #FFFFFF !important;
+            box-shadow: 0 0 30px rgba(0, 212, 255, 1) !important;
+            transform: scale(1.05);
+        }
+        [data-testid="stButton"] p {
+            font-size: 18px !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    col_left, col_mid, col_right = st.columns([1, 4, 1])
+    
+    with col_mid:
+        st.markdown('<div class="centered-content">', unsafe_allow_html=True)
+        st.markdown('<div class="landing-title">Intelligent Intrusion<br>Detection System (IIDS)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="landing-subtitle">AI-Powered Network Traffic Monitoring & Anomaly Detection</div>', unsafe_allow_html=True)
+        
+        # Center the button strictly inside the card
+        c1, c2, c3 = st.columns([1, 2, 1])
+        with c2:
+            if st.button("Launch Dashboard", use_container_width=True):
+                st.session_state.app_launched = True
+                st.rerun()
+                
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    st.stop()
+
+
+# ---- Authentication Gateway ----
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "login"
+
+if not st.session_state.authenticated:
+    st.markdown("""
+    <div style="text-align: center; margin-top: 50px; margin-bottom: 30px;">
+        <h1 style="font-size: 3.5rem; color: #FFFFFF; font-weight: 900; letter-spacing: -1px; line-height: 1.2;">Intelligent Intrusion<br>Detection System (IIDS)</h1>
+        <p style="color: #8b949e; font-size: 1.2rem; margin-top: 15px;">AI-Powered Network Traffic Monitoring & Anomaly Detection</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.session_state.current_page == "login":
+            st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align: center; color: #00D4FF;'>Secure Login</h3>", unsafe_allow_html=True)
+            with st.form("login_form"):
+                login_email = st.text_input("Work Email")
+                login_password = st.text_input("Password", type="password")
+                submit_login = st.form_submit_button("Sign In")
+                
+                if submit_login:
+                    if not login_email or not login_password:
+                        st.error("Please enter email and password.")
+                    else:
+                        success, user_data = db_utils.authenticate_user(login_email, login_password)
+                        if success:
+                            st.session_state.authenticated = True
+                            st.session_state.current_page = "dashboard"
+                            st.session_state.current_user = user_data
+                            st.rerun()
+                        else:
+                            st.error("Invalid email or password.")
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align: center; color: #8b949e; font-size: 14px; margin-bottom: 10px;'>Don't have an account?</div>", unsafe_allow_html=True)
+            if st.button("Sign Up", use_container_width=True, type="tertiary"):
+                st.session_state.current_page = "register"
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+        elif st.session_state.current_page == "register":
+            st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align: center; color: #00D4FF;'>Create Account</h3>", unsafe_allow_html=True)
+            with st.form("register_form"):
+                reg_name = st.text_input("Full Name")
+                reg_email = st.text_input("Work Email")
+                reg_company = st.text_input("Company Name")
+                reg_password = st.text_input("Password", type="password")
+                reg_confirm = st.text_input("Confirm Password", type="password")
+                submit_register = st.form_submit_button("Sign Up")
+                
+                if submit_register:
+                    if not reg_name or not reg_email or not reg_company or not reg_password or not reg_confirm:
+                        st.error("All fields are required.")
+                    elif reg_password != reg_confirm:
+                        st.error("Passwords do not match.")
+                    else:
+                        success, msg = db_utils.register_user(reg_name, reg_email, reg_company, reg_password)
+                        if success:
+                            st.success("Registration successful! Redirecting to Login...")
+                            import time
+                            time.sleep(1.5)
+                            st.session_state.current_page = "login"
+                            st.rerun()
+                        else:
+                            st.error(msg)
+                            
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align: center; color: #8b949e; font-size: 14px; margin-bottom: 10px;'>Already have an account?</div>", unsafe_allow_html=True)
+            if st.button("Log In", use_container_width=True, type="tertiary"):
+                st.session_state.current_page = "login"
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    st.stop() # Halt execution if not authenticated
 
 # ---- Load Models ----
 @st.cache_resource
@@ -370,6 +595,15 @@ with st.sidebar:
         st.session_state.total_malicious = 0
         st.rerun()
 
+    # 4. Account
+    st.markdown("<br><h4 style='color: #e6edf3; font-size: 15px; border-bottom: 2px solid #30363d; padding-bottom: 6px; margin-bottom: 12px;'><span style='color: #8b949e; margin-right: 8px;'>🔒</span> Account</h4>", unsafe_allow_html=True)
+    if st.session_state.current_user:
+        st.markdown(f"<div style='color: #58a6ff; font-size: 13px; margin-bottom: 10px; font-weight: bold;'>👤 {st.session_state.current_user['full_name']}<br><span style='color: #8b949e; font-size: 11px;'>🏢 {st.session_state.current_user['company_name']}</span></div>", unsafe_allow_html=True)
+    if st.button("🚪 Logout", key="btn_logout", use_container_width=True):
+        st.session_state.authenticated = False
+        st.session_state.current_user = None
+        st.rerun()
+
     # Apply Sidebar Custom CSS
     st.markdown("""
     <style>
@@ -418,147 +652,102 @@ tab_dashboard, tab_chat, tab_manual, tab_corporate = st.tabs(["📊 Dashboard", 
 #  TAB 1: DASHBOARD
 # ==============================
 with tab_dashboard:
-    st.markdown("### 📊 System Overview")
-    
-    # ROW 1: Stats Row
-    s1, s2, s3, s4 = st.columns(4)
-    with s1:
-        metric_card("Total Flows", st.session_state.total_analyzed, "🌐")
-    with s2:
-        metric_card("Detected Threats", st.session_state.total_malicious, "🎯")
-    with s3:
-        metric_card("Blocked IPs", len(st.session_state.blocked_ips), "🚫")
-    with s4:
-        active_alerts = len([a for a in st.session_state.alerts if a.get("status", "ACTIVE") == "ACTIVE"])
-        metric_card("Active Alerts", active_alerts, "🚨")
-
-    st.divider()
-
-    # ROW 2: Alerts Feed + Blocked IPs
-    col_alerts, col_blocked = st.columns([6, 4])
-
-    # Inject Hover CSS globally for these cards
     st.markdown("""
-    <style>
-    .soc-card:hover { transform: translateY(-3px) scale(1.01); z-index: 10; }
-    </style>
+    <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="font-size: 2.5rem; color: #e6edf3; font-weight: 900; letter-spacing: 1px;">IIDS | Corporate Security Portal</h1>
+    </div>
     """, unsafe_allow_html=True)
+    
+    # ROW 1: Stats Row (3 boxes)
+    s1, s2, s3 = st.columns(3)
+    with s1:
+        st.markdown(f"""
+        <div class="cyber-card" style="border-color: #00D4FF !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(0,212,255,0.6) !important;">
+            <div style="color: #00D4FF; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🌐 Flows Analyzed</div>
+            <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(0,212,255,0.4);">{st.session_state.total_analyzed}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with s2:
+        st.markdown(f"""
+        <div class="cyber-card" style="border-color: #FF4B4B !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(255,75,75,0.6) !important;">
+            <div style="color: #FF4B4B; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🎯 Threats Detected</div>
+            <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(255,75,75,0.4);">{st.session_state.total_malicious}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with s3:
+        st.markdown(f"""
+        <div class="cyber-card" style="border-color: #00FF41 !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(0,255,65,0.6) !important;">
+            <div style="color: #00FF41; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🚫 Total IPs Blocked</div>
+            <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(0,255,65,0.4);">{len(st.session_state.blocked_ips)}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    with col_alerts:
-        st.markdown("### 🚨 Live Security Alerts")
-        with st.container(height=550, border=False):
-            if st.session_state.alerts:
-                for idx, alert in enumerate(reversed(st.session_state.alerts)):
-                    severity = alert.get("severity", "NORMAL").upper()
-                    if severity == "CRITICAL":
-                        border_color = "#ff4d4d"
-                        bg_accent = "rgba(255, 77, 77, 0.08)"
-                        icon = "🚨"
-                        glow = "box-shadow: 0 0 15px rgba(255, 77, 77, 0.15);"
-                    elif severity == "HIGH":
-                        border_color = "#f2cc60"
-                        bg_accent = "rgba(242, 204, 96, 0.05)"
-                        icon = "⚠️"
-                        glow = "box-shadow: 0 4px 6px rgba(0,0,0,0.1);"
-                    else:
-                        border_color = "#58a6ff"
-                        bg_accent = "rgba(88, 166, 255, 0.05)"
-                        icon = "ℹ️"
-                        glow = "box-shadow: 0 4px 6px rgba(0,0,0,0.1);"
+    st.divider()
 
-                    with st.container():
-                        # We use nested columns inside the loop to place the button next to the card
-                        ac1, ac2 = st.columns([4, 1.2])
-                        with ac1:
-                            st.markdown(f"""
-                            <div class="soc-card" style="background-color: #161b22; border: 1px solid #30363d; border-left: 5px solid {border_color}; background-image: linear-gradient(90deg, {bg_accent} 0%, transparent 100%); border-radius: 12px; padding: 18px; margin-bottom: 2px; {glow} transition: all 0.2s ease;">
-                                <div style="font-weight: 900; font-size: 15px; color: {border_color}; margin-bottom: 10px; letter-spacing: 0.5px;">
-                                    {icon} {severity} &nbsp;|&nbsp; {alert.get('attack_type', 'Unknown Threat')}
-                                </div>
-                                <div style="font-size: 14px; color: #e6edf3; margin-bottom: 8px; font-family: monospace; background: rgba(0,0,0,0.2); padding: 5px 8px; border-radius: 6px;">
-                                    <span style="color: #8b949e;">SRC:</span> {alert.get('src_ip')} &nbsp;➔&nbsp; <span style="color: #8b949e;">DST:</span> {alert.get('dst_ip')}
-                                </div>
-                                <div style="font-size: 13px; color: #8b949e; margin-bottom: 6px; display: flex; justify-content: space-between;">
-                                    <span>Score: <strong style="color: #e6edf3;">{alert.get('anomaly_score', 0):.3f}</strong></span>
-                                    <span>Prob: <strong style="color: #e6edf3;">{alert.get('malicious_probability', 0):.3f}</strong></span>
-                                </div>
-                                <div style="font-size: 12px; color: #f2cc60; margin-top: 8px; font-style: italic;">
-                                    {alert.get('shap_explanation', '')}
-                                </div>
-                                <div style="font-size: 11px; color: #484f58; margin-top: 8px;">
-                                    🕒 {alert.get('timestamp')}
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        with ac2:
-                            st.markdown("<div style='height: 38px;'></div>", unsafe_allow_html=True)
-                            if alert["src_ip"] not in st.session_state.blocked_ips:
-                                if st.button("🚫 Block IP", key=f"dash_blk_{alert['id']}_{idx}", type="primary", use_container_width=True):
-                                    db_utils.block_ip_db(alert["src_ip"])
-                                    st.rerun()
-                            else:
-                                st.markdown("""
-                                <div style="color: #ff4d4d; font-weight: 800; font-size: 12px; text-align: center; border: 1px solid rgba(255,77,77,0.3); background: rgba(255,77,77,0.1); border-radius: 8px; padding: 8px; box-shadow: 0 0 10px rgba(255,77,77,0.1);">
-                                    🛡️ BLOCKED
-                                </div>
-                                """, unsafe_allow_html=True)
-                        st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
-            else:
-                st.info("No active alerts. System telemetry is benign.")
+    # ROW 2: Global Threat Radar (World Map centered)
+    st.markdown("<h3 style='text-align: center;'>🌍 Global Threat Radar</h3>", unsafe_allow_html=True)
+    col_map_space1, col_map_center, col_map_space2 = st.columns([1, 8, 1])
+    with col_map_center:
+        render_global_threat_map()
+    
+    st.divider()
 
-    with col_blocked:
-        st.markdown("### 🚫 Blocked IPs")
-        with st.container(height=550, border=False):
-            if st.session_state.blocked_ips:
-                for idx, ip in enumerate(sorted(st.session_state.blocked_ips)):
-                    # Lookup reason from recent alerts
-                    reason = "Manual Block / Heuristic"
-                    timestamp = ""
-                    for a in reversed(st.session_state.alerts):
-                        if a.get("src_ip") == ip:
-                            reason = a.get("attack_type", "Threat")
-                            timestamp = a.get("timestamp", "")
-                            break
-                    
-                    with st.container():
-                        st.markdown(f"""
-                        <div class="soc-card" style="background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 15px; margin-bottom: -15px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); transition: transform 0.2s ease;">
-                            <div style="font-weight: 800; font-size: 16px; color: #ff4d4d; margin-bottom: 8px; font-family: monospace;">
-                                🛡️ {ip}
-                            </div>
-                            <div style="font-size: 13px; color: #8b949e; margin-bottom: 4px;">
-                                Reason: <span style="color: #e6edf3;">{reason}</span>
-                            </div>
-                            <div style="font-size: 11px; color: #484f58; margin-bottom: 25px;">
-                                {timestamp}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        bc1, bc2 = st.columns([1, 1.2])
-                        with bc2:
-                            if st.button("🔓 Unblock", key=f"dash_unblock_{ip}_{idx}", use_container_width=True):
-                                db_utils.unblock_ip_db(ip)
-                                st.rerun()
-                        st.markdown("<hr style='border: none; margin: 5px 0;'>", unsafe_allow_html=True)
-            else:
-                st.info("No addresses currently blocked.")
+    # ROW 3: Streaming Feed
+    st.markdown("### 📡 Live Streaming Feed")
+    if st.session_state.alerts:
+        df_alerts = pd.DataFrame(st.session_state.alerts)
+        
+        # Apply custom HTML styling for monospace table
+        st.markdown("""
+        <style>
+        .streaming-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Roboto Mono', Courier, monospace;
+            background-color: #050505;
+            color: #FFFFFF;
+            font-size: 14px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            border: 1px solid #121212;
+        }
+        .streaming-table th {
+            background-color: #121212;
+            color: #00D4FF;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #00D4FF;
+        }
+        .streaming-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #1a1a1a;
+        }
+        .streaming-table tr:hover {
+            background-color: #121212;
+        }
+        .sev-CRITICAL { color: #FF4B4B !important; font-weight: 900 !important; text-shadow: 0 0 8px #FF4B4B; }
+        .sev-HIGH { color: #f2cc60 !important; font-weight: 900 !important; }
+        .sev-NORMAL { color: #00FF41 !important; font-weight: bold; }
+        </style>
+        """, unsafe_allow_html=True)
+
+        table_html = "<table class='streaming-table'><tr><th>TIMESTAMP</th><th>SRC IP</th><th>DST IP</th><th>THREAT TYPE</th><th>SEVERITY</th><th>SCORE</th></tr>"
+        for _, row in df_alerts.head(15).iterrows():
+            sev = row.get("severity", "NORMAL").upper()
+            sev_class = f"sev-{sev}"
+            score = f"{row.get('anomaly_score', 0):.4f}"
+            table_html += f"<tr><td>{row.get('timestamp')}</td><td>{row.get('src_ip')}</td><td>{row.get('dst_ip')}</td><td>{row.get('attack_type')}</td><td class='{sev_class}'>{sev}</td><td>{score}</td></tr>"
+        table_html += "</table>"
+        st.markdown(table_html, unsafe_allow_html=True)
+    else:
+        st.info("No active threats in the streaming feed.")
 
     st.divider()
     
-    # ROW 3: Threat Analytics & Activity Timeline UI (Plotly)
+    # ROW 4: Threat Analytics UI
     st.markdown("### 📊 Threat Analytics")
     render_visualizations()
-    st.divider()
-
-    # ROW 4: Global Threat Intelligence
-    st.markdown("### 🌍 Global Threat Intelligence")
-    col_map, col_countries = st.columns([7, 3])
-    with col_map:
-        render_global_threat_map()
-    with col_countries:
-        st.markdown("<h4 style='color: #8b949e; font-size: 14px; text-align: center;'>Top Attacking Countries</h4>", unsafe_allow_html=True)
-        render_top_countries()
     st.divider()
 
 
@@ -641,9 +830,6 @@ with tab_chat:
 
         with st.spinner("AI Security Analyst is processing..."):
             try:
-                # Re-sync shared state before agent call
-                agent_tools.set_shared_state(st.session_state.alerts, st.session_state.blocked_ips)
-
                 agent_executor = init_agent()
                 result = agent_executor.invoke({
                     "input": actual_input,
@@ -652,15 +838,19 @@ with tab_chat:
 
                 response = result.get("output", "No response.")
 
-                # Extract steps
+                # Extract steps (robust)
                 steps = []
                 for step in result.get("intermediate_steps", []):
-                    action, observation = step
-                    steps.append({
-                        "tool": action.tool,
-                        "input": str(action.tool_input),
-                        "output": str(observation),
-                    })
+                    try:
+                        if isinstance(step, (tuple, list)) and len(step) >= 2:
+                            action, observation = step[0], step[1]
+                            steps.append({
+                                "tool": getattr(action, 'tool', 'unknown'),
+                                "input": str(getattr(action, 'tool_input', '')),
+                                "output": str(observation),
+                            })
+                    except Exception:
+                        pass
 
                 # Count analyzed flows from tool calls
                 for s in steps:
@@ -700,6 +890,8 @@ with tab_chat:
                 })
 
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 error_msg = f"Analysis Error: {str(e)}"
                 st.error(error_msg)
                 st.session_state.messages.append({

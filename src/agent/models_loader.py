@@ -34,9 +34,20 @@ class ModelsLoader:
         self.stage1_xgb = joblib.load(MODELS_DIR / "stage1_xgb.pkl", mmap_mode='r')
         self.stage1_rf = joblib.load(MODELS_DIR / "stage1_rf.pkl", mmap_mode='r')
 
-        # Stage 2 — Multiclass classifier (attack type)
-        self.stage2_xgb, self.stage2_encoder = joblib.load(MODELS_DIR / "stage2_xgb.pkl", mmap_mode='r')
-        self.stage2_rf, _ = joblib.load(MODELS_DIR / "stage2_rf.pkl", mmap_mode='r')
+        # Stage 2 — Multiclass classifier (attack type) - Robust tuple unpacking
+        stage2_xgb_data = joblib.load(MODELS_DIR / "stage2_xgb.pkl", mmap_mode='r')
+        if isinstance(stage2_xgb_data, tuple) and len(stage2_xgb_data) >= 2:
+            self.stage2_xgb, self.stage2_encoder = stage2_xgb_data[0], stage2_xgb_data[1]
+        else:
+            self.stage2_xgb = stage2_xgb_data
+            self.stage2_encoder = None
+            print("[!] Warning: stage2_xgb.pkl did not contain an encoder tuple.")
+
+        stage2_rf_data = joblib.load(MODELS_DIR / "stage2_rf.pkl", mmap_mode='r')
+        if isinstance(stage2_rf_data, tuple) and len(stage2_rf_data) >= 1:
+            self.stage2_rf = stage2_rf_data[0]
+        else:
+            self.stage2_rf = stage2_rf_data
 
         self._loaded = True
         print("[+] All models loaded successfully!")

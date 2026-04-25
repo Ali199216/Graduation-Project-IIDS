@@ -58,12 +58,12 @@ def create_agent(temperature: float = 0.1):
     models.load()
 
     llm = ChatGroq(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.1-8b-instant",
         temperature=temperature,
         groq_api_key=os.getenv("GROQ_API_KEY"),
     )
 
-    agent = create_react_agent(llm, tools=ALL_TOOLS, state_modifier=SYSTEM_PROMPT)
+    agent = create_react_agent(llm, tools=ALL_TOOLS, prompt=SYSTEM_PROMPT)
 
     class DummyAction:
         def __init__(self, tool_name, tool_input):
@@ -75,30 +75,42 @@ def create_agent(temperature: float = 0.1):
             self.agent = core_agent
         
         def invoke(self, inputs):
-            chat_history = inputs.get("chat_history", [])
-            actual_input = inputs.get("input", "")
-            messages = chat_history + [HumanMessage(content=actual_input)]
-            
-            result = self.agent.invoke({"messages": messages})
-            
-            final_message = result["messages"][-1]
-            intermediate_steps = []
-            
-            for i, msg in enumerate(result["messages"]):
-                if msg.type == "ai" and getattr(msg, "tool_calls", None):
-                    for tool_call in msg.tool_calls:
-                        tool_output = ""
-                        for next_msg in result["messages"][i+1:]:
-                            if next_msg.type == "tool" and next_msg.tool_call_id == tool_call.get("id"):
-                                tool_output = next_msg.content
-                                break
-                        
-                        action = DummyAction(tool_call.get("name"), tool_call.get("args", {}))
-                        intermediate_steps.append((action, tool_output))
+            try:
+                chat_history = inputs.get("chat_history", [])
+                actual_input = inputs.get("input", "")
+                messages = chat_history + [HumanMessage(content=actual_input)]
+                
+                result = self.agent.invoke({"messages": messages})
+                
+                final_message = result["messages"][-1]
+                intermediate_steps = []
+                
+                for i, msg in enumerate(result["messages"]):
+                    try:
+                        if msg.type == "ai" and getattr(msg, "tool_calls", None):
+                            for tool_call in msg.tool_calls:
+                                tool_output = ""
+                                for next_msg in result["messages"][i+1:]:
+                                    if next_msg.type == "tool" and getattr(next_msg, "tool_call_id", None) == tool_call.get("id"):
+                                        tool_output = next_msg.content
+                                        break
+                                
+                                action = DummyAction(tool_call.get("name", "unknown"), tool_call.get("args", {}))
+                                intermediate_steps.append((action, tool_output))
+                    except Exception as step_err:
+                        print(f"[!] Step extraction error: {step_err}")
+                        continue
 
-            return {
-                "output": final_message.content,
-                "intermediate_steps": intermediate_steps
-            }
+                return {
+                    "output": final_message.content,
+                    "intermediate_steps": intermediate_steps
+                }
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                return {
+                    "output": f"Agent execution error: {str(e)}",
+                    "intermediate_steps": []
+                }
 
     return LegacyAgentWrapper(agent)
