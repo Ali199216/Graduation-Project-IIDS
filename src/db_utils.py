@@ -52,6 +52,19 @@ def init_db():
             password TEXT
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS analysis_sessions (
+            session_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_email TEXT,
+            filename TEXT,
+            timestamp TEXT,
+            total_flows INTEGER,
+            total_threats INTEGER,
+            total_blocked INTEGER,
+            map_data_json TEXT,
+            report_path TEXT
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -205,3 +218,51 @@ def authenticate_user(email, password):
     finally:
         conn.close()
 
+
+# ---- Session History Functions ----
+
+def save_session(user_email, filename, total_flows, total_threats, total_blocked, map_data_json, report_path=""):
+    """Save a completed analysis session to the archive."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO analysis_sessions (user_email, filename, timestamp, total_flows, total_threats, total_blocked, map_data_json, report_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            user_email,
+            filename,
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            total_flows,
+            total_threats,
+            total_blocked,
+            map_data_json,
+            report_path
+        ))
+        return cursor.lastrowid
+    finally:
+        conn.close()
+
+def get_sessions(user_email):
+    """Get all analysis sessions for a user, newest first."""
+    conn = get_db_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM analysis_sessions WHERE user_email = ? ORDER BY session_id DESC', (user_email,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+def get_session_by_id(session_id):
+    """Get a single session's full data for replay."""
+    conn = get_db_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM analysis_sessions WHERE session_id = ?', (session_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()

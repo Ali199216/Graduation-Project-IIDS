@@ -26,7 +26,7 @@ from agent.models_loader import models
 from agent.agent import create_agent
 from agent import tools as agent_tools
 import db_utils
-from visuals import render_visualizations, render_global_threat_map, render_top_countries
+from visuals import render_visualizations, render_global_threat_map, render_top_countries, render_historical_threat_map
 from explain_utils import explain_prediction
 
 db_utils.init_db()
@@ -454,6 +454,7 @@ if not st.session_state.authenticated:
                             st.session_state.authenticated = True
                             st.session_state.current_page = "dashboard"
                             st.session_state.current_user = user_data
+                            st.session_state.user_email = login_email
                             st.rerun()
                         else:
                             st.error("Invalid email or password.")
@@ -595,7 +596,35 @@ with st.sidebar:
         st.session_state.total_malicious = 0
         st.rerun()
 
-    # 4. Account
+    # 4. Analysis History
+    st.markdown("<br><h4 style='color: #e6edf3; font-size: 15px; border-bottom: 2px solid #30363d; padding-bottom: 6px; margin-bottom: 12px;'><span style='color: #a371f7; margin-right: 8px;'>📜</span> Analysis History</h4>", unsafe_allow_html=True)
+    
+    user_email = ""
+    if st.session_state.current_user:
+        user_email = st.session_state.get("user_email", "")
+    
+    sessions = db_utils.get_sessions(user_email) if user_email else []
+    
+    if sessions:
+        session_labels = [f"{s['filename']} ({s['timestamp'][:10]})" for s in sessions]
+        selected_idx = st.selectbox("Select Session", range(len(session_labels)), format_func=lambda i: session_labels[i], key="history_select")
+        
+        col_load, col_live = st.columns(2)
+        with col_load:
+            if st.button("📂 Load", key="btn_load_history", use_container_width=True):
+                st.session_state.viewing_history = True
+                st.session_state.history_session = sessions[selected_idx]
+                st.rerun()
+        with col_live:
+            if st.session_state.get("viewing_history"):
+                if st.button("🔴 Live", key="btn_return_live", use_container_width=True):
+                    st.session_state.viewing_history = False
+                    st.session_state.history_session = None
+                    st.rerun()
+    else:
+        st.markdown("<p style='color: #8b949e; font-size: 12px;'>No saved sessions yet.</p>", unsafe_allow_html=True)
+
+    # 5. Account
     st.markdown("<br><h4 style='color: #e6edf3; font-size: 15px; border-bottom: 2px solid #30363d; padding-bottom: 6px; margin-bottom: 12px;'><span style='color: #8b949e; margin-right: 8px;'>🔒</span> Account</h4>", unsafe_allow_html=True)
     if st.session_state.current_user:
         st.markdown(f"<div style='color: #58a6ff; font-size: 13px; margin-bottom: 10px; font-weight: bold;'>👤 {st.session_state.current_user['full_name']}<br><span style='color: #8b949e; font-size: 11px;'>🏢 {st.session_state.current_user['company_name']}</span></div>", unsafe_allow_html=True)
@@ -652,103 +681,170 @@ tab_dashboard, tab_chat, tab_manual, tab_corporate = st.tabs(["📊 Dashboard", 
 #  TAB 1: DASHBOARD
 # ==============================
 with tab_dashboard:
-    st.markdown("""
-    <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="font-size: 2.5rem; color: #e6edf3; font-weight: 900; letter-spacing: 1px;">IIDS | Corporate Security Portal</h1>
-    </div>
-    """, unsafe_allow_html=True)
+    # Check if viewing historical session
+    _viewing_history = st.session_state.get("viewing_history", False)
+    _history_data = st.session_state.get("history_session", None)
     
-    # ROW 1: Stats Row (3 boxes)
-    s1, s2, s3 = st.columns(3)
-    with s1:
+    if _viewing_history and _history_data:
+        # ---- HISTORICAL VIEW MODE ----
         st.markdown(f"""
-        <div class="cyber-card" style="border-color: #00D4FF !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(0,212,255,0.6) !important;">
-            <div style="color: #00D4FF; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🌐 Flows Analyzed</div>
-            <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(0,212,255,0.4);">{st.session_state.total_analyzed}</div>
+        <div style="text-align: center; margin-bottom: 10px; padding: 12px; border-radius: 10px; background: rgba(163,113,247,0.15); border: 2px solid #a371f7;">
+            <span style="color: #a371f7; font-size: 18px; font-weight: 900;">📜 HISTORICAL VIEW — {_history_data.get('filename', 'Unknown')} ({_history_data.get('timestamp', '')[:10]})</span>
         </div>
         """, unsafe_allow_html=True)
-    with s2:
-        st.markdown(f"""
-        <div class="cyber-card" style="border-color: #FF4B4B !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(255,75,75,0.6) !important;">
-            <div style="color: #FF4B4B; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🎯 Threats Detected</div>
-            <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(255,75,75,0.4);">{st.session_state.total_malicious}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with s3:
-        st.markdown(f"""
-        <div class="cyber-card" style="border-color: #00FF41 !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(0,255,65,0.6) !important;">
-            <div style="color: #00FF41; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🚫 Total IPs Blocked</div>
-            <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(0,255,65,0.4);">{len(st.session_state.blocked_ips)}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.divider()
-
-    # ROW 2: Global Threat Radar (World Map centered)
-    st.markdown("<h3 style='text-align: center;'>🌍 Global Threat Radar</h3>", unsafe_allow_html=True)
-    col_map_space1, col_map_center, col_map_space2 = st.columns([1, 8, 1])
-    with col_map_center:
-        render_global_threat_map()
-    
-    st.divider()
-
-    # ROW 3: Streaming Feed
-    st.markdown("### 📡 Live Streaming Feed")
-    if st.session_state.alerts:
-        df_alerts = pd.DataFrame(st.session_state.alerts)
         
-        # Apply custom HTML styling for monospace table
         st.markdown("""
-        <style>
-        .streaming-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-family: 'Roboto Mono', Courier, monospace;
-            background-color: #050505;
-            color: #FFFFFF;
-            font-size: 14px;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            border: 1px solid #121212;
-        }
-        .streaming-table th {
-            background-color: #121212;
-            color: #00D4FF;
-            padding: 12px;
-            text-align: left;
-            border-bottom: 2px solid #00D4FF;
-        }
-        .streaming-table td {
-            padding: 10px 12px;
-            border-bottom: 1px solid #1a1a1a;
-        }
-        .streaming-table tr:hover {
-            background-color: #121212;
-        }
-        .sev-CRITICAL { color: #FF4B4B !important; font-weight: 900 !important; text-shadow: 0 0 8px #FF4B4B; }
-        .sev-HIGH { color: #f2cc60 !important; font-weight: 900 !important; }
-        .sev-NORMAL { color: #00FF41 !important; font-weight: bold; }
-        </style>
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="font-size: 2.5rem; color: #e6edf3; font-weight: 900; letter-spacing: 1px;">IIDS | Corporate Security Portal</h1>
+        </div>
         """, unsafe_allow_html=True)
-
-        table_html = "<table class='streaming-table'><tr><th>TIMESTAMP</th><th>SRC IP</th><th>DST IP</th><th>THREAT TYPE</th><th>SEVERITY</th><th>SCORE</th></tr>"
-        for _, row in df_alerts.head(15).iterrows():
-            sev = row.get("severity", "NORMAL").upper()
-            sev_class = f"sev-{sev}"
-            score = f"{row.get('anomaly_score', 0):.4f}"
-            table_html += f"<tr><td>{row.get('timestamp')}</td><td>{row.get('src_ip')}</td><td>{row.get('dst_ip')}</td><td>{row.get('attack_type')}</td><td class='{sev_class}'>{sev}</td><td>{score}</td></tr>"
-        table_html += "</table>"
-        st.markdown(table_html, unsafe_allow_html=True)
+        
+        h_flows = _history_data.get('total_flows', 0)
+        h_threats = _history_data.get('total_threats', 0)
+        h_blocked = _history_data.get('total_blocked', 0)
+        
+        s1, s2, s3 = st.columns(3)
+        with s1:
+            st.markdown(f"""
+            <div class="cyber-card" style="border-color: #00D4FF !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(0,212,255,0.6) !important;">
+                <div style="color: #00D4FF; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🌐 Flows Analyzed</div>
+                <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(0,212,255,0.4);">{h_flows}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with s2:
+            st.markdown(f"""
+            <div class="cyber-card" style="border-color: #FF4B4B !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(255,75,75,0.6) !important;">
+                <div style="color: #FF4B4B; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🎯 Threats Detected</div>
+                <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(255,75,75,0.4);">{h_threats}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with s3:
+            st.markdown(f"""
+            <div class="cyber-card" style="border-color: #00FF41 !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(0,255,65,0.6) !important;">
+                <div style="color: #00FF41; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🚫 Total IPs Blocked</div>
+                <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(0,255,65,0.4);">{h_blocked}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        # Historical Map
+        st.markdown("<h3 style='text-align: center;'>🌍 Global Threat Radar (Archived)</h3>", unsafe_allow_html=True)
+        col_map_space1, col_map_center, col_map_space2 = st.columns([1, 8, 1])
+        with col_map_center:
+            map_json = _history_data.get('map_data_json', '[]')
+            render_historical_threat_map(map_json)
+        
+        st.divider()
+        
+        # Download report if available
+        report_path = _history_data.get('report_path', '')
+        if report_path:
+            from pathlib import Path
+            rp = Path(report_path)
+            if rp.exists():
+                with open(rp, "rb") as f:
+                    st.download_button("📥 Download PDF Report", f.read(), file_name=rp.name, mime="application/pdf", use_container_width=True)
+        
     else:
-        st.info("No active threats in the streaming feed.")
+        # ---- LIVE VIEW MODE ----
+        st.markdown("""
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="font-size: 2.5rem; color: #e6edf3; font-weight: 900; letter-spacing: 1px;">IIDS | Corporate Security Portal</h1>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # ROW 1: Stats Row (3 boxes)
+        s1, s2, s3 = st.columns(3)
+        with s1:
+            st.markdown(f"""
+            <div class="cyber-card" style="border-color: #00D4FF !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(0,212,255,0.6) !important;">
+                <div style="color: #00D4FF; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🌐 Flows Analyzed</div>
+                <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(0,212,255,0.4);">{st.session_state.total_analyzed}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with s2:
+            st.markdown(f"""
+            <div class="cyber-card" style="border-color: #FF4B4B !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(255,75,75,0.6) !important;">
+                <div style="color: #FF4B4B; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🎯 Threats Detected</div>
+                <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(255,75,75,0.4);">{st.session_state.total_malicious}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with s3:
+            st.markdown(f"""
+            <div class="cyber-card" style="border-color: #00FF41 !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(0,255,65,0.6) !important;">
+                <div style="color: #00FF41; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🚫 Total IPs Blocked</div>
+                <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(0,255,65,0.4);">{len(st.session_state.blocked_ips)}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-    st.divider()
-    
-    # ROW 4: Threat Analytics UI
-    st.markdown("### 📊 Threat Analytics")
-    render_visualizations()
-    st.divider()
+        st.divider()
+
+        # ROW 2: Global Threat Radar (World Map centered)
+        st.markdown("<h3 style='text-align: center;'>🌍 Global Threat Radar</h3>", unsafe_allow_html=True)
+        col_map_space1, col_map_center, col_map_space2 = st.columns([1, 8, 1])
+        with col_map_center:
+            render_global_threat_map()
+        
+        st.divider()
+
+        # ROW 3: Streaming Feed
+        st.markdown("### 📡 Live Streaming Feed")
+        if st.session_state.alerts:
+            df_alerts = pd.DataFrame(st.session_state.alerts)
+            
+            # Apply custom HTML styling for monospace table
+            st.markdown("""
+            <style>
+            .streaming-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-family: 'Roboto Mono', Courier, monospace;
+                background-color: #050505;
+                color: #FFFFFF;
+                font-size: 14px;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+                border: 1px solid #121212;
+            }
+            .streaming-table th {
+                background-color: #121212;
+                color: #00D4FF;
+                padding: 12px;
+                text-align: left;
+                border-bottom: 2px solid #00D4FF;
+            }
+            .streaming-table td {
+                padding: 10px 12px;
+                border-bottom: 1px solid #1a1a1a;
+            }
+            .streaming-table tr:hover {
+                background-color: #121212;
+            }
+            .sev-CRITICAL { color: #FF4B4B !important; font-weight: 900 !important; text-shadow: 0 0 8px #FF4B4B; }
+            .sev-HIGH { color: #f2cc60 !important; font-weight: 900 !important; }
+            .sev-NORMAL { color: #00FF41 !important; font-weight: bold; }
+            </style>
+            """, unsafe_allow_html=True)
+
+            table_html = "<table class='streaming-table'><tr><th>TIMESTAMP</th><th>SRC IP</th><th>DST IP</th><th>THREAT TYPE</th><th>SEVERITY</th><th>SCORE</th></tr>"
+            for _, row in df_alerts.head(15).iterrows():
+                sev = row.get("severity", "NORMAL").upper()
+                sev_class = f"sev-{sev}"
+                score = f"{row.get('anomaly_score', 0):.4f}"
+                table_html += f"<tr><td>{row.get('timestamp')}</td><td>{row.get('src_ip')}</td><td>{row.get('dst_ip')}</td><td>{row.get('attack_type')}</td><td class='{sev_class}'>{sev}</td><td>{score}</td></tr>"
+            table_html += "</table>"
+            st.markdown(table_html, unsafe_allow_html=True)
+        else:
+            st.info("No active threats in the streaming feed.")
+
+        st.divider()
+        
+        # ROW 4: Threat Analytics UI
+        st.markdown("### 📊 Threat Analytics")
+        render_visualizations()
+        st.divider()
 
 
 # ==============================
@@ -1573,5 +1669,38 @@ with tab_corporate:
                     ph_status.text(f"Scanning Complete. System Active.")
                 st.session_state.last_upload_total_flows = total_rows
                 st.session_state.last_upload_malicious = malicious_added
+                
+                # ---- AUTO-SAVE SESSION TO HISTORY ----
+                try:
+                    import json as _json
+                    # Build map data from live_alerts
+                    map_points = []
+                    for alert in live_alerts:
+                        map_points.append({
+                            'src_ip': alert.get('ip', ''),
+                            'attack_type': alert.get('attack_type', 'Unknown'),
+                            'city': alert.get('city', 'N/A'),
+                            'country': alert.get('country', 'N/A'),
+                            'latitude': alert.get('lat', 0),
+                            'longitude': alert.get('lon', 0),
+                        })
+                    map_json_str = _json.dumps(map_points, ensure_ascii=False)
+                    
+                    user_email = st.session_state.get('user_email', '')
+                    filename = uploaded_file.name if uploaded_file else 'Unknown'
+                    
+                    db_utils.save_session(
+                        user_email=user_email,
+                        filename=filename,
+                        total_flows=total_rows,
+                        total_threats=malicious_added,
+                        total_blocked=assets_shielded,
+                        map_data_json=map_json_str,
+                        report_path=""
+                    )
+                    st.toast("📜 Session saved to history!", icon="✅")
+                except Exception as save_err:
+                    print(f"[!] Session save error: {save_err}")
+                    
             except Exception as e:
                 st.error(f"Live stream processing error: {e}")

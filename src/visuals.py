@@ -176,3 +176,55 @@ def render_top_countries():
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("📊 Global country metrics accumulating.")
+
+def render_historical_threat_map(map_data_json):
+    """Render threat map from archived JSON data (for Session History replay)."""
+    import folium
+    import json
+    from streamlit_folium import st_folium
+    
+    try:
+        data = json.loads(map_data_json) if isinstance(map_data_json, str) else map_data_json
+    except (json.JSONDecodeError, TypeError):
+        st.warning("⚠️ No map data available for this session.")
+        return
+    
+    attack_colors = {
+        'DoS': 'red', 'Exploits': 'orange', 'Backdoor': 'purple',
+        'Reconnaissance': 'blue', 'Generic': 'green', 'Fuzzers': 'violet',
+        'Shellcode': 'darkred', 'Worms': 'cadetblue', 'Analysis': 'lightblue',
+    }
+    
+    m = folium.Map(location=[20, 0], zoom_start=2, tiles='CartoDB dark_matter')
+    
+    for point in data:
+        lat = point.get('latitude', 0)
+        lon = point.get('longitude', 0)
+        if lat == 0 and lon == 0:
+            continue
+        
+        attack = point.get('attack_type', 'Unknown')
+        color = attack_colors.get(attack, 'gray')
+        
+        html_tooltip = f'''
+        <div style="font-family: Arial, sans-serif; font-size: 13px; min-width: 150px; line-height: 1.4;">
+            <b>City:</b> {point.get('city', 'N/A')}<br>
+            <b>Country:</b> {point.get('country', 'N/A')}<br>
+            <b>Attack Type: <span style="color:{color};">{attack}</span></b><br>
+            <b>IP:</b> {point.get('src_ip', 'N/A')}
+        </div>
+        '''
+        
+        folium.CircleMarker(
+            location=[lat, lon],
+            radius=5,
+            tooltip=folium.Tooltip(html_tooltip),
+            color=color,
+            fill=True,
+            fill_color=color,
+            fill_opacity=0.8,
+            weight=2
+        ).add_to(m)
+    
+    st_folium(m, key=f"history_map_{len(data)}", width=1200, height=500, returned_objects=[])
+
