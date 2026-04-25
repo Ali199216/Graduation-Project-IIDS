@@ -17,6 +17,15 @@ def init_db():
     except sqlite3.OperationalError:
         cursor.execute("DROP TABLE IF EXISTS attack_logs")
     
+    # Migrate analysis_sessions: add attack_distribution column if missing
+    try:
+        cursor.execute("SELECT attack_distribution FROM analysis_sessions LIMIT 1")
+    except sqlite3.OperationalError:
+        try:
+            cursor.execute("ALTER TABLE analysis_sessions ADD COLUMN attack_distribution TEXT DEFAULT ''")
+        except:
+            pass
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS attack_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,6 +71,7 @@ def init_db():
             total_threats INTEGER,
             total_blocked INTEGER,
             map_data_json TEXT,
+            attack_distribution TEXT,
             report_path TEXT
         )
     ''')
@@ -221,14 +231,14 @@ def authenticate_user(email, password):
 
 # ---- Session History Functions ----
 
-def save_session(user_email, filename, total_flows, total_threats, total_blocked, map_data_json, report_path=""):
+def save_session(user_email, filename, total_flows, total_threats, total_blocked, map_data_json, attack_distribution="", report_path=""):
     """Save a completed analysis session to the archive."""
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO analysis_sessions (user_email, filename, timestamp, total_flows, total_threats, total_blocked, map_data_json, report_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO analysis_sessions (user_email, filename, timestamp, total_flows, total_threats, total_blocked, map_data_json, attack_distribution, report_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             user_email,
             filename,
@@ -237,19 +247,23 @@ def save_session(user_email, filename, total_flows, total_threats, total_blocked
             total_threats,
             total_blocked,
             map_data_json,
+            attack_distribution,
             report_path
         ))
         return cursor.lastrowid
     finally:
         conn.close()
 
-def get_sessions(user_email):
-    """Get all analysis sessions for a user, newest first."""
+def get_sessions(user_email=""):
+    """Get all analysis sessions, optionally filtered by user. Newest first."""
     conn = get_db_connection()
     try:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute('SELECT * FROM analysis_sessions WHERE user_email = ? ORDER BY session_id DESC', (user_email,))
+        if user_email:
+            cursor.execute('SELECT * FROM analysis_sessions WHERE user_email = ? ORDER BY session_id DESC', (user_email,))
+        else:
+            cursor.execute('SELECT * FROM analysis_sessions ORDER BY session_id DESC')
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     finally:

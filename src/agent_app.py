@@ -599,11 +599,8 @@ with st.sidebar:
     # 4. Analysis History
     st.markdown("<br><h4 style='color: #e6edf3; font-size: 15px; border-bottom: 2px solid #30363d; padding-bottom: 6px; margin-bottom: 12px;'><span style='color: #a371f7; margin-right: 8px;'>📜</span> Analysis History</h4>", unsafe_allow_html=True)
     
-    user_email = ""
-    if st.session_state.current_user:
-        user_email = st.session_state.get("user_email", "")
-    
-    sessions = db_utils.get_sessions(user_email) if user_email else []
+    user_email = st.session_state.get("user_email", "")
+    sessions = db_utils.get_sessions(user_email)
     
     if sessions:
         session_labels = [f"{s['filename']} ({s['timestamp'][:10]})" for s in sessions]
@@ -687,9 +684,15 @@ with tab_dashboard:
     
     if _viewing_history and _history_data:
         # ---- HISTORICAL VIEW MODE ----
+        _h_ts = _history_data.get('timestamp', 'Unknown')
+        _h_fn = _history_data.get('filename', 'Unknown')
         st.markdown(f"""
-        <div style="text-align: center; margin-bottom: 10px; padding: 12px; border-radius: 10px; background: rgba(163,113,247,0.15); border: 2px solid #a371f7;">
-            <span style="color: #a371f7; font-size: 18px; font-weight: 900;">📜 HISTORICAL VIEW — {_history_data.get('filename', 'Unknown')} ({_history_data.get('timestamp', '')[:10]})</span>
+        <div style="text-align: center; margin-bottom: 10px; padding: 16px; border-radius: 10px; background: rgba(163,113,247,0.15); border: 2px solid #a371f7;">
+            <div style="color: #a371f7; font-size: 20px; font-weight: 900; letter-spacing: 1px;">📜 HISTORICAL VIEW</div>
+            <div style="color: #e6edf3; font-size: 15px; margin-top: 8px;">
+                <span style="color: #8b949e;">File:</span> <b>{_h_fn}</b> &nbsp;|&nbsp;
+                <span style="color: #8b949e;">Session Time:</span> <b>{_h_ts}</b>
+            </div>
         </div>
         """, unsafe_allow_html=True)
         
@@ -737,6 +740,64 @@ with tab_dashboard:
         
         st.divider()
         
+        # Historical Streaming Feed (from saved map points)
+        st.markdown("### 📡 Archived Threat Feed")
+        try:
+            import json as _hjson
+            _saved_points = _hjson.loads(_history_data.get('map_data_json', '[]'))
+            if _saved_points:
+                st.markdown("""
+                <style>
+                .streaming-table { width: 100%; border-collapse: collapse; font-family: 'Roboto Mono', Courier, monospace; background-color: #050505; color: #FFFFFF; font-size: 14px; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.5); border: 1px solid #121212; }
+                .streaming-table th { background-color: #121212; color: #00D4FF; padding: 12px; text-align: left; border-bottom: 2px solid #00D4FF; }
+                .streaming-table td { padding: 10px 12px; border-bottom: 1px solid #1a1a1a; }
+                .streaming-table tr:hover { background-color: #121212; }
+                .sev-CRITICAL { color: #FF4B4B !important; font-weight: 900 !important; text-shadow: 0 0 8px #FF4B4B; }
+                .sev-HIGH { color: #f2cc60 !important; font-weight: 900 !important; }
+                </style>
+                """, unsafe_allow_html=True)
+                
+                feed_html = "<table class='streaming-table'><tr><th>TIMESTAMP</th><th>SRC IP</th><th>DST IP</th><th>THREAT TYPE</th><th>SEVERITY</th><th>LOCATION</th></tr>"
+                for pt in _saved_points[:15]:
+                    sev = pt.get('severity', 'HIGH').upper()
+                    sev_class = f"sev-{sev}"
+                    loc = f"{pt.get('city','N/A')}, {pt.get('country','N/A')}"
+                    feed_html += f"<tr><td>{pt.get('timestamp','—')}</td><td>{pt.get('src_ip','—')}</td><td>{pt.get('dst_ip','—')}</td><td>{pt.get('attack_type','—')}</td><td class='{sev_class}'>{sev}</td><td>{loc}</td></tr>"
+                feed_html += "</table>"
+                st.markdown(feed_html, unsafe_allow_html=True)
+            else:
+                st.info("No threat data recorded for this session.")
+        except Exception:
+            st.info("No threat feed data available.")
+        
+        st.divider()
+        
+        # Attack Distribution Chart (from saved data)
+        st.markdown("### 📊 Attack Distribution")
+        try:
+            import json as _djson
+            _attack_dist = _djson.loads(_history_data.get('attack_distribution', '{}'))
+            if _attack_dist:
+                import plotly.express as px
+                _dist_df = pd.DataFrame(list(_attack_dist.items()), columns=['Attack Type', 'Count'])
+                _fig = px.bar(_dist_df, x='Attack Type', y='Count', color='Attack Type',
+                             color_discrete_map={'DoS': '#ff4d4d', 'Exploits': '#f28c28', 'Generic': '#2ea043', 
+                                                 'Reconnaissance': '#58a6ff', 'Backdoor': '#8b949e', 'Fuzzers': '#a371f7',
+                                                 'Shellcode': '#f85149', 'Worms': '#e63946', 'Analysis': '#79c0ff'})
+                _fig.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font_color='#e6edf3', margin=dict(l=0, r=0, t=10, b=0),
+                    showlegend=False, height=350
+                )
+                _fig.update_yaxes(gridcolor='#30363d')
+                st.plotly_chart(_fig, use_container_width=True)
+            else:
+                st.info("No attack distribution data for this session.")
+        except Exception:
+            st.info("Attack distribution data not available.")
+        
+        st.divider()
+        
         # Download report if available
         report_path = _history_data.get('report_path', '')
         if report_path:
@@ -744,7 +805,7 @@ with tab_dashboard:
             rp = Path(report_path)
             if rp.exists():
                 with open(rp, "rb") as f:
-                    st.download_button("📥 Download PDF Report", f.read(), file_name=rp.name, mime="application/pdf", use_container_width=True)
+                    st.download_button("📥 Download Past Report", f.read(), file_name=rp.name, mime="application/pdf", use_container_width=True)
         
     else:
         # ---- LIVE VIEW MODE ----
@@ -1517,6 +1578,8 @@ with tab_corporate:
                 import pydeck as pdk
                 import random
                 
+                scan_start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
                 for i, row in df_upload.iterrows():
                     if st.session_state.get('stop_scan', False):
                         break
@@ -1568,13 +1631,20 @@ with tab_corporate:
                                 "shap_explanation": shap_explanation
                             }
                             
-                            # Real-time DB save
+                            # Real-time DB save (updates alert with real lat/lon/city/country)
                             db_utils.save_attack_to_db(alert)
-                            st.session_state.alerts.insert(0, alert)
+                            st.session_state.alerts.insert(0, alert.copy())
                             
-                            alert['lat'] = random.uniform(20.0, 50.0)
-                            alert['lon'] = random.uniform(-120.0, 50.0)
-                            live_alerts.append(alert)
+                            # Create a SEPARATE map point for pydeck (uses real geolocation)
+                            map_point = {
+                                'ip': alert.get('src_ip', ''),
+                                'attack_type': alert.get('attack_type', 'Unknown'),
+                                'lat': alert.get('latitude', random.uniform(20.0, 50.0)),
+                                'lon': alert.get('longitude', random.uniform(-120.0, 50.0)),
+                                'city': alert.get('city', 'N/A'),
+                                'country': alert.get('country', 'N/A'),
+                            }
+                            live_alerts.append(map_point)
                             
                             # Simulated API Push / Blocking
                             if src_ip not in st.session_state.blocked_ips:
@@ -1671,36 +1741,54 @@ with tab_corporate:
                 st.session_state.last_upload_malicious = malicious_added
                 
                 # ---- AUTO-SAVE SESSION TO HISTORY ----
-                try:
-                    import json as _json
-                    # Build map data from live_alerts
-                    map_points = []
-                    for alert in live_alerts:
-                        map_points.append({
-                            'src_ip': alert.get('ip', ''),
-                            'attack_type': alert.get('attack_type', 'Unknown'),
-                            'city': alert.get('city', 'N/A'),
-                            'country': alert.get('country', 'N/A'),
-                            'latitude': alert.get('lat', 0),
-                            'longitude': alert.get('lon', 0),
-                        })
-                    map_json_str = _json.dumps(map_points, ensure_ascii=False)
-                    
-                    user_email = st.session_state.get('user_email', '')
-                    filename = uploaded_file.name if uploaded_file else 'Unknown'
-                    
-                    db_utils.save_session(
-                        user_email=user_email,
-                        filename=filename,
-                        total_flows=total_rows,
-                        total_threats=malicious_added,
-                        total_blocked=assets_shielded,
-                        map_data_json=map_json_str,
-                        report_path=""
-                    )
-                    st.toast("📜 Session saved to history!", icon="✅")
-                except Exception as save_err:
-                    print(f"[!] Session save error: {save_err}")
+                if total_rows > 0:
+                    try:
+                        import json as _json
+                        
+                        # Build map data from REAL DB alerts (with correct geolocation)
+                        # st.session_state.alerts has the real lat/lon from save_attack_to_db
+                        map_points = []
+                        attack_counts = {}
+                        
+                        for alert in st.session_state.alerts[:malicious_added]:
+                            lat = alert.get('latitude', 0)
+                            lon = alert.get('longitude', 0)
+                            atk = alert.get('attack_type', 'Unknown')
+                            
+                            # Count attack types
+                            attack_counts[atk] = attack_counts.get(atk, 0) + 1
+                            
+                            map_points.append({
+                                'src_ip': alert.get('src_ip', ''),
+                                'dst_ip': alert.get('dst_ip', ''),
+                                'attack_type': atk,
+                                'severity': alert.get('severity', 'NORMAL'),
+                                'city': alert.get('city', 'N/A'),
+                                'country': alert.get('country', 'N/A'),
+                                'latitude': lat,
+                                'longitude': lon,
+                                'timestamp': alert.get('timestamp', ''),
+                            })
+                        
+                        map_json_str = _json.dumps(map_points, ensure_ascii=False)
+                        attack_dist_str = _json.dumps(attack_counts, ensure_ascii=False)
+                        
+                        _user_email = st.session_state.get('user_email', '')
+                        _filename = uploaded_file.name if uploaded_file else 'Unknown'
+                        
+                        db_utils.save_session(
+                            user_email=_user_email,
+                            filename=_filename,
+                            total_flows=total_rows,
+                            total_threats=malicious_added,
+                            total_blocked=assets_shielded,
+                            map_data_json=map_json_str,
+                            attack_distribution=attack_dist_str,
+                            report_path=""
+                        )
+                        st.toast("📜 Session saved to history!", icon="✅")
+                    except Exception as save_err:
+                        print(f"[!] Session save error: {save_err}")
                     
             except Exception as e:
                 st.error(f"Live stream processing error: {e}")
