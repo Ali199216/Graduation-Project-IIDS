@@ -3,6 +3,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from db_utils import get_db_connection
+from geo_utils import HOME_BASE_COORDS
 
 color_map = {
     'DoS': '#ff4d4d',       # Red
@@ -85,6 +86,97 @@ def render_visualizations():
         else:
             st.info("No timeline data currently available.")
 
+
+def _add_attack_path_lines(m, df):
+    """Draw animated Neon Red AntPath lines from each attacker to the Home Base."""
+    import folium
+    from folium.plugins import AntPath
+    
+    home_lat = HOME_BASE_COORDS['lat']
+    home_lon = HOME_BASE_COORDS['lon']
+    
+    # Add Home Base marker
+    folium.CircleMarker(
+        location=[home_lat, home_lon],
+        radius=8,
+        color='#00D4FF',
+        fill=True,
+        fill_color='#00D4FF',
+        fill_opacity=0.9,
+        weight=3,
+        tooltip=folium.Tooltip(
+            '<div style="font-family: Courier, monospace; font-size: 13px; min-width: 140px;">'
+            '<b style="color: #00D4FF;">HOME BASE</b><br>'
+            '<b>Location:</b> ' + HOME_BASE_COORDS["city"] + ', ' + HOME_BASE_COORDS["country"] + '<br>'
+            '<b>Status:</b> <span style="color: #00FF41;">DEFENDED</span>'
+            '</div>'
+        )
+    ).add_to(m)
+    
+    # Outer glow ring for Home Base
+    folium.CircleMarker(
+        location=[home_lat, home_lon],
+        radius=18,
+        color='#00D4FF',
+        fill=True,
+        fill_color='#00D4FF',
+        fill_opacity=0.1,
+        weight=2,
+        dash_array='5,5'
+    ).add_to(m)
+    
+    if df.empty:
+        return
+    
+    # Draw attack paths using AntPath (built-in animated dashed lines)
+    for idx, row in df.iterrows():
+        atk_lat = row.get('latitude', 0)
+        atk_lon = row.get('longitude', 0)
+        
+        if atk_lat == 0 and atk_lon == 0:
+            continue
+        
+        # Skip if attacker is too close to home base (same location)
+        if abs(atk_lat - home_lat) < 0.5 and abs(atk_lon - home_lon) < 0.5:
+            continue
+        
+        attack_type = str(row.get('attack_type', 'Unknown'))
+        src_ip = str(row.get('ip', row.get('src_ip', 'N/A')))
+        dst_ip = str(row.get('dst_ip', 'Target'))
+        timestamp = str(row.get('timestamp', ''))
+        time_only = timestamp.split()[1] if ' ' in timestamp else timestamp
+        
+        # Tooltip text (simple, no complex HTML to avoid DOM issues)
+        tip_text = attack_type + ' | ' + src_ip + ' -> Target'
+        
+        # Popup HTML for the attack path line
+        popup_html = (
+            '<div style="font-family: Courier New, monospace; font-size: 13px; min-width: 200px;'
+            'background: #0d1117; color: #e6edf3; padding: 14px; border-radius: 8px;'
+            'border: 2px solid #FF4B4B; line-height: 1.6;">'
+            '<div style="color: #FF4B4B; font-weight: 900; font-size: 14px; margin-bottom: 8px;">'
+            'ATTACK FLOW DETECTED</div>'
+            '<b style="color: #FF4B4B;">Source:</b> ' + src_ip + '<br>'
+            '<b style="color: #00D4FF;">Target:</b> ' + dst_ip + '<br>'
+            '<b style="color: #f2cc60;">Type:</b> ' + attack_type + '<br>'
+            '<b style="color: #8b949e;">Time:</b> ' + time_only +
+            '</div>'
+        )
+        
+        # AntPath: animated flowing dashed line (built-in, no Jinja2 needed)
+        AntPath(
+            locations=[[atk_lat, atk_lon], [home_lat, home_lon]],
+            color='#FF4B4B',
+            weight=3,
+            opacity=0.8,
+            delay=800,
+            dash_array=[10, 20],
+            pulse_color='#FF8C00',
+            popup=folium.Popup(popup_html, max_width=280),
+            tooltip=tip_text,
+        ).add_to(m)
+
+
 def render_global_threat_map():
     import folium
     from streamlit_folium import st_folium
@@ -92,7 +184,7 @@ def render_global_threat_map():
     conn = get_db_connection()
     # 1. Connect to SQLite and fetch logs
     df = pd.read_sql_query(
-        "SELECT src_ip as ip, attack_type, timestamp, city, country, latitude, longitude "
+        "SELECT src_ip as ip, dst_ip, attack_type, timestamp, city, country, latitude, longitude "
         "FROM attack_logs", 
         conn
     )
@@ -109,8 +201,15 @@ def render_global_threat_map():
         'Probe': 'yellow',
     }
     
-    # 3. Use folium.Map
-    m = folium.Map(location=[20, 0], zoom_start=2, tiles='CartoDB dark_matter')
+    # Check if there's a highlighted IP to focus on
+    _highlight = st.session_state.get("selected_ip_coords", None)
+    
+    if _highlight:
+        _h_lat = _highlight.get('lat', 20)
+        _h_lon = _highlight.get('lon', 0)
+        m = folium.Map(location=[_h_lat, _h_lon], zoom_start=6, tiles='CartoDB dark_matter')
+    else:
+        m = folium.Map(location=[20, 0], zoom_start=2, tiles='CartoDB dark_matter')
     
     if not df.empty:
         # 4. Loop through the database results
@@ -145,9 +244,71 @@ def render_global_threat_map():
                 fill_opacity=0.8,
                 weight=2
             ).add_to(m)
+    
+    # ── ATTACK PATH LINES ("Neon Trails") ──
+    _add_attack_path_lines(m, df)
+    
+    # Render highlighted IP pulse marker
+    if _highlight:
+        _h_ip = _highlight.get('ip', 'Unknown')
+        _h_attack = _highlight.get('attack_type', 'N/A')
+        _h_risk = _highlight.get('risk', 'N/A')
+        _h_city = _highlight.get('city', 'N/A')
+        _h_country = _highlight.get('country', 'N/A')
+        _h_lat = _highlight.get('lat', 0)
+        _h_lon = _highlight.get('lon', 0)
+        
+        # Outer pulse ring (large, semi-transparent)
+        folium.CircleMarker(
+            location=[_h_lat, _h_lon],
+            radius=25,
+            color='#FF4B4B',
+            fill=True,
+            fill_color='#FF4B4B',
+            fill_opacity=0.15,
+            weight=2,
+            dash_array='5,5'
+        ).add_to(m)
+        
+        # Inner solid marker
+        folium.CircleMarker(
+            location=[_h_lat, _h_lon],
+            radius=10,
+            color='#FF4B4B',
+            fill=True,
+            fill_color='#FF4B4B',
+            fill_opacity=0.9,
+            weight=3,
+        ).add_to(m)
+        
+        # Popup with dossier summary
+        popup_html = f'''
+        <div style="font-family: 'Courier New', monospace; font-size: 13px; min-width: 220px; 
+                    background: #0d1117; color: #e6edf3; padding: 14px; border-radius: 8px;
+                    border: 2px solid #FF4B4B; line-height: 1.6;">
+            <div style="color: #FF4B4B; font-weight: 900; font-size: 15px; margin-bottom: 8px;">
+                🎯 TRACKED TARGET
+            </div>
+            <b style="color: #FF4B4B;">IP:</b> {_h_ip}<br>
+            <b style="color: #00D4FF;">Attack:</b> {_h_attack}<br>
+            <b style="color: #FF8C00;">Risk:</b> {_h_risk}<br>
+            <b>Location:</b> {_h_city}, {_h_country}
+        </div>
+        '''
+        folium.Marker(
+            location=[_h_lat, _h_lon],
+            popup=folium.Popup(popup_html, max_width=280),
+            icon=folium.DivIcon(html=f'''
+                <div style="background: #FF4B4B; width: 12px; height: 12px; border-radius: 50%;
+                            border: 3px solid #FFFFFF; box-shadow: 0 0 15px #FF4B4B;"></div>
+            ''')
+        ).add_to(m)
 
     # 5. Integration: Return map to st_folium
-    st_folium(m, key=f"threat_map_{len(df)}", width=1200, height=500, returned_objects=[])
+    _map_key = f"threat_map_{len(df)}"
+    if _highlight:
+        _map_key += f"_hl_{_highlight.get('ip','')}"
+    st_folium(m, key=_map_key, width=1200, height=500, returned_objects=[])
 
 def render_top_countries():
     conn = get_db_connection()
@@ -197,6 +358,9 @@ def render_historical_threat_map(map_data_json):
     
     m = folium.Map(location=[20, 0], zoom_start=2, tiles='CartoDB dark_matter')
     
+    # Build a DataFrame from data for attack path lines
+    path_records = []
+    
     for point in data:
         lat = point.get('latitude', 0)
         lon = point.get('longitude', 0)
@@ -225,6 +389,19 @@ def render_historical_threat_map(map_data_json):
             fill_opacity=0.8,
             weight=2
         ).add_to(m)
+        
+        path_records.append({
+            'latitude': lat,
+            'longitude': lon,
+            'attack_type': attack,
+            'src_ip': point.get('src_ip', 'N/A'),
+            'dst_ip': point.get('dst_ip', 'Target'),
+            'timestamp': point.get('timestamp', ''),
+        })
+    
+    # ── ATTACK PATH LINES for historical data ──
+    if path_records:
+        df_paths = pd.DataFrame(path_records)
+        _add_attack_path_lines(m, df_paths)
     
     st_folium(m, key=f"history_map_{len(data)}", width=1200, height=500, returned_objects=[])
-

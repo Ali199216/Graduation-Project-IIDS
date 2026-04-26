@@ -28,6 +28,10 @@ MOCK_CITIES = [
     {"city": "Mexico City", "country": "Mexico", "lat": 19.4326, "lon": -99.1332},
 ]
 
+# Fixed "Home Base" coordinates — represents YOUR network target on the map
+# Used as the destination endpoint for Attack Path Visualization lines
+HOME_BASE_COORDS = {"city": "Cairo", "country": "Egypt", "lat": 30.0444, "lon": 31.2357}
+
 def _get_mock_location():
     """Returns a random location with significant cluster jittering"""
     loc = random.choice(MOCK_CITIES)

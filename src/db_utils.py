@@ -187,6 +187,91 @@ def get_blocked_ips_db():
     finally:
         conn.close()
 
+def get_blocked_ips_detailed():
+    """Get blocked IPs with their block timestamp, attack type, and coordinates."""
+    conn = get_db_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT b.ip, b.date_added,
+                   COALESCE(a.attack_type, 'Manual Block') AS attack_type,
+                   COALESCE(a.severity, 'N/A') AS severity,
+                   COALESCE(a.latitude, 0) AS latitude,
+                   COALESCE(a.longitude, 0) AS longitude,
+                   COALESCE(a.city, 'Unknown') AS city,
+                   COALESCE(a.country, 'Unknown') AS country
+            FROM blocked_ips b
+            LEFT JOIN (
+                SELECT src_ip, attack_type, severity, latitude, longitude, city, country,
+                       ROW_NUMBER() OVER (PARTITION BY src_ip ORDER BY id DESC) AS rn
+                FROM attack_logs
+            ) a ON b.ip = a.src_ip AND a.rn = 1
+            ORDER BY b.date_added DESC
+        ''')
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+def get_attacker_profile(ip):
+    """Build a full attacker dossier for a given IP address."""
+    conn = get_db_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        # Get all attacks from this IP
+        cursor.execute('''
+            SELECT attack_type, severity, timestamp, dst_ip, anomaly_score, city, country
+            FROM attack_logs WHERE src_ip = ? ORDER BY id DESC
+        ''', (ip,))
+        rows = [dict(r) for r in cursor.fetchall()]
+        
+        if not rows:
+            return None
+        
+        attack_types = list(set(r['attack_type'] for r in rows if r.get('attack_type')))
+        total_hits = len(rows)
+        severities = [r['severity'] for r in rows if r.get('severity')]
+        countries = list(set(r['country'] for r in rows if r.get('country')))
+        cities = list(set(r['city'] for r in rows if r.get('city')))
+        
+        # Risk level
+        if total_hits >= 10 or 'CRITICAL' in severities:
+            risk = 'HIGH'
+        elif total_hits >= 4 or 'HIGH' in severities:
+            risk = 'MEDIUM'
+        else:
+            risk = 'LOW'
+        
+        # Behavioral tags
+        tags = []
+        if total_hits >= 8: tags.append('Persistent Scanner')
+        if any(t in attack_types for t in ['DoS']): tags.append('High-Volume Flooder')
+        if any(t in attack_types for t in ['Reconnaissance']): tags.append('Network Prober')
+        if any(t in attack_types for t in ['Backdoor']): tags.append('Covert Access Agent')
+        if any(t in attack_types for t in ['Exploits']): tags.append('Vulnerability Exploiter')
+        if any(t in attack_types for t in ['Shellcode']): tags.append('Code Injector')
+        if any(t in attack_types for t in ['Worms']): tags.append('Self-Propagator')
+        if any(t in attack_types for t in ['Fuzzers']): tags.append('Input Fuzzer')
+        if len(attack_types) >= 3: tags.append('Multi-Vector Attacker')
+        if not tags: tags.append('Unclassified Threat')
+        
+        return {
+            'ip': ip,
+            'total_hits': total_hits,
+            'risk': risk,
+            'tags': tags,
+            'attack_types': attack_types,
+            'countries': countries,
+            'cities': cities,
+            'first_seen': rows[-1].get('timestamp', 'N/A'),
+            'last_seen': rows[0].get('timestamp', 'N/A'),
+            'recent_attacks': rows[:5],
+        }
+    finally:
+        conn.close()
+
 def clear_db():
     conn = get_db_connection()
     try:
@@ -278,5 +363,34 @@ def get_session_by_id(session_id):
         cursor.execute('SELECT * FROM analysis_sessions WHERE session_id = ?', (session_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def get_daily_threat_counts():
+    """Get daily threat counts and attack types for the Threat Calendar Heatmap.
+    Returns: dict of {date_str: {'count': N, 'types': ['DoS', 'Recon', ...]}}
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT DATE(timestamp) as day, COUNT(*) as count,
+                   GROUP_CONCAT(DISTINCT attack_type) as types
+            FROM attack_logs
+            WHERE timestamp IS NOT NULL
+            GROUP BY DATE(timestamp)
+            ORDER BY day DESC
+        ''')
+        rows = cursor.fetchall()
+        result = {}
+        for row in rows:
+            day_str = row[0]
+            if day_str:
+                result[day_str] = {
+                    'count': row[1],
+                    'types': row[2] if row[2] else ''
+                }
+        return result
     finally:
         conn.close()
