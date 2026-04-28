@@ -1104,7 +1104,7 @@ if "show_blocklist" not in st.session_state:
 
 
 # ---- Main Tabs ----
-tab_dashboard, tab_chat, tab_manual, tab_corporate = st.tabs(["📊 Dashboard", "🤖 Chat", "🛠️ Manual Analysis", "🏢 Corporate Portal"])
+tab_dashboard, tab_chat, tab_manual, tab_corporate, tab_deep_analysis = st.tabs(["📊 Dashboard", "🤖 Chat", "🛠️ Manual Analysis", "🏢 Corporate Portal", "🔬 Deep Analysis"])
 
 
 # ==============================
@@ -1142,10 +1142,41 @@ with tab_dashboard:
         .blocklist-table td {
             padding: 12px 16px; border-bottom: 1px solid rgba(255,75,75,0.1); font-size: 14px;
         }
-        .blocklist-table tr:hover { background-color: rgba(255,75,75,0.05); }
+        .blocklist-table tr:hover { background-color: rgba(255,75,75,0.08); }
+        .blocklist-table tr:hover .forensic-tooltip { opacity: 1; visibility: visible; transform: translateY(0); }
         .blocklist-empty {
             text-align: center; padding: 40px; color: #2ea043;
             font-size: 18px; font-weight: 700; font-family: 'Roboto Mono', monospace;
+        }
+        @keyframes pulse-block {
+            0%, 100% { box-shadow: 0 0 4px rgba(255,75,75,0.4); }
+            50% { box-shadow: 0 0 12px rgba(255,75,75,0.9), 0 0 20px rgba(255,75,75,0.3); }
+        }
+        .active-block-badge {
+            display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 10px;
+            font-weight: 900; font-family: 'Roboto Mono', monospace; letter-spacing: 1px;
+            background: rgba(255,75,75,0.15); border: 1px solid #FF4B4B; color: #FF4B4B;
+            animation: pulse-block 2s ease-in-out infinite; text-transform: uppercase;
+        }
+        .forensic-tooltip {
+            opacity: 0; visibility: hidden; position: absolute; z-index: 999;
+            left: 50%; transform: translateY(8px); 
+            background: #0d1117; border: 1px solid #FF4B4B; border-radius: 10px;
+            padding: 14px 18px; min-width: 340px; box-shadow: 0 0 25px rgba(255,75,75,0.3);
+            transition: all 0.25s ease; pointer-events: none; margin-top: 4px;
+        }
+        .forensic-tooltip .tt-title {
+            font-family: 'Orbitron', monospace; font-size: 11px; color: #FF4B4B;
+            font-weight: 900; letter-spacing: 1px; margin-bottom: 10px; text-transform: uppercase;
+        }
+        .forensic-tooltip .tt-row {
+            display: flex; justify-content: space-between; padding: 3px 0;
+            font-family: 'Roboto Mono', monospace; font-size: 11px;
+        }
+        .tt-normal { color: #2ea043; }
+        .tt-attack { color: #FF4B4B; }
+        .comparison-inline {
+            font-family: 'Roboto Mono', monospace; font-size: 11px; line-height: 1.6;
         }
         .dossier-card {
             background: rgba(18,18,18,0.9); backdrop-filter: blur(15px);
@@ -1226,25 +1257,96 @@ with tab_dashboard:
                 st.rerun()
             st.stop()
 
-        # ── BLOCKLIST TABLE VIEW ──
+        # ── FORENSIC BLOCKLIST TABLE VIEW ──
+        from geo_utils import get_country_flag
+        
         st.markdown('<div class="blocklist-card">', unsafe_allow_html=True)
-        st.markdown('<div class="blocklist-header">🚫 Active IP Bans</div>', unsafe_allow_html=True)
+        st.markdown('<div class="blocklist-header">🚫 Forensic IP Block Registry</div>', unsafe_allow_html=True)
 
         blocked_details = db_utils.get_blocked_ips_detailed()
 
         if blocked_details:
-            table_html = "<table class='blocklist-table'><tr><th>#</th><th>IP Address</th><th>Reason (Attack Type)</th><th>Severity</th><th>Blocked At</th><th>Profile</th></tr>"
+            # Pre-fetch Normal vs Attack baselines for tooltip
+            _baselines = {}
+            for b in blocked_details:
+                try:
+                    _baselines[b['ip']] = db_utils.get_normal_vs_attack_baseline(b['ip'])
+                except Exception:
+                    _baselines[b['ip']] = None
+
+            table_html = "<table class='blocklist-table'><tr>"
+            table_html += "<th>#</th><th>🎯 Target IP</th><th>🌍 Geo-Location</th>"
+            table_html += "<th>⚔️ Attack Type</th><th>📊 Normal vs Attack</th>"
+            table_html += "<th>🔴 Status</th><th>Hits</th></tr>"
+            
             for idx, b in enumerate(blocked_details, 1):
                 sev = b.get('severity', 'N/A').upper()
-                sev_color = '#FF4B4B' if sev == 'CRITICAL' else '#f2cc60' if sev == 'HIGH' else '#8b949e'
-                table_html += f"<tr><td style='color: #8b949e;'>{idx}</td><td><code style='color: #FF4B4B; background: rgba(255,75,75,0.1); padding: 3px 8px; border-radius: 4px;'>{b['ip']}</code></td><td>{b.get('attack_type', 'N/A')}</td><td style='color: {sev_color}; font-weight: 700;'>{sev}</td><td style='color: #8b949e;'>{b.get('date_added', 'N/A')}</td><td style='color: #FF8C00;'>🔎</td></tr>"
+                city = b.get('city', 'Unknown')
+                country = b.get('country', 'Unknown')
+                flag = get_country_flag(country)
+                anomaly = b.get('anomaly_score', 0)
+                prob = b.get('malicious_probability', 0)
+                hits = b.get('total_hits', 1)
+                
+                # Normal vs Attack inline comparison
+                normal_score = "0.02"
+                attack_score = f"{anomaly:.2f}" if anomaly else "N/A"
+                normal_prob = "0.05"
+                attack_prob = f"{prob:.2f}" if prob else "N/A"
+                
+                comparison_html = (
+                    f"<span class='comparison-inline'>"
+                    f"<span class='tt-normal'>Normal: {normal_score}</span>"
+                    f" <span style='color:#8b949e;'>│</span> "
+                    f"<span class='tt-attack'>Attack: {attack_score}</span>"
+                    f"</span>"
+                )
+                
+                # Build hover tooltip content
+                bl = _baselines.get(b['ip'])
+                if bl:
+                    n = bl['normal']
+                    a = bl['attack']
+                    tooltip_html = (
+                        f"<div class='forensic-tooltip'>"
+                        f"<div class='tt-title'>⚡ Normal vs Attack Baseline</div>"
+                        f"<div class='tt-row'><span style='color:#8b949e;'>Metric</span>"
+                        f"<span class='tt-normal'>Normal</span><span class='tt-attack'>Attack</span></div>"
+                        f"<div style='border-bottom:1px solid #1a1a1a; margin:4px 0;'></div>"
+                        f"<div class='tt-row'><span style='color:#8b949e;'>Anomaly Score</span>"
+                        f"<span class='tt-normal'>{n['anomaly_score']}</span>"
+                        f"<span class='tt-attack'>{a['anomaly_score']}</span></div>"
+                        f"<div class='tt-row'><span style='color:#8b949e;'>Malicious Prob</span>"
+                        f"<span class='tt-normal'>{n['malicious_probability']}</span>"
+                        f"<span class='tt-attack'>{a['malicious_probability']}</span></div>"
+                        f"<div class='tt-row'><span style='color:#8b949e;'>Threat Level</span>"
+                        f"<span class='tt-normal'>{n['threat_level']}</span>"
+                        f"<span class='tt-attack'>{a['threat_level']}</span></div>"
+                        f"<div class='tt-row'><span style='color:#8b949e;'>Total Hits</span>"
+                        f"<span class='tt-attack' style='grid-column: span 2;'>{a['total_detections']}</span></div>"
+                        f"</div>"
+                    )
+                else:
+                    tooltip_html = ""
+                
+                table_html += (
+                    f"<tr style='position: relative;'>"
+                    f"<td style='color: #8b949e;'>{idx}</td>"
+                    f"<td><code style='color: #FF4B4B; background: rgba(255,75,75,0.1); padding: 3px 8px; border-radius: 4px; font-family: Roboto Mono, monospace;'>{b['ip']}</code></td>"
+                    f"<td>{flag} {city}, {country}</td>"
+                    f"<td>{b.get('attack_type', 'N/A')}</td>"
+                    f"<td style='position: relative;'>{comparison_html}{tooltip_html}</td>"
+                    f"<td><span class='active-block-badge'>ACTIVE BLOCK</span></td>"
+                    f"<td style='color: #FF8C00; font-weight: 700; text-align: center;'>{hits}</td>"
+                    f"</tr>"
+                )
             table_html += "</table>"
             st.markdown(table_html, unsafe_allow_html=True)
-            st.markdown(f"<div style='color: #8b949e; font-size: 12px; margin-top: 12px; text-align: right;'>{len(blocked_details)} IP(s) currently blocked</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='color: #8b949e; font-size: 12px; margin-top: 12px; text-align: right;'>{len(blocked_details)} IP(s) currently blocked — Forensic data enriched</div>", unsafe_allow_html=True)
 
-            # IP action buttons (Profile + Locate)
+            # IP action buttons (Profile + Locate on Map)
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<div style='color: #FF8C00; font-size: 13px; font-weight: 700; margin-bottom: 8px;'>🔎 Investigate  |  📍 Locate on Map:</div>", unsafe_allow_html=True)
+            st.markdown("<div style='color: #FF8C00; font-size: 13px; font-weight: 700; margin-bottom: 8px;'>🔎 Investigate  |  📍 Show on Map:</div>", unsafe_allow_html=True)
             cols = st.columns(min(len(blocked_details), 4))
             for i, b in enumerate(blocked_details[:8]):
                 with cols[i % 4]:
@@ -1257,7 +1359,7 @@ with tab_dashboard:
                         _lat = b.get('latitude', 0)
                         _lon = b.get('longitude', 0)
                         if _lat and _lon and _lat != 0 and _lon != 0:
-                            if st.button(f"📍 Locate", key=f"locate_{b['ip']}", use_container_width=True):
+                            if st.button(f"📍 Map", key=f"locate_{b['ip']}", use_container_width=True):
                                 prof = db_utils.get_attacker_profile(b['ip'])
                                 st.session_state.selected_ip_coords = {
                                     'lat': _lat, 'lon': _lon,
@@ -1335,20 +1437,195 @@ with tab_dashboard:
         
         st.divider()
         
-        # Historical Map
-        st.markdown("<h3 style='text-align: center;'>🌍 Global Threat Radar (Archived)</h3>", unsafe_allow_html=True)
-        col_map_space1, col_map_center, col_map_space2 = st.columns([1, 8, 1])
-        with col_map_center:
-            map_json = _history_data.get('map_data_json', '[]')
-            render_historical_threat_map(map_json)
-        
-        st.divider()
-        
-        # Historical Streaming Feed (from saved map points)
-        st.markdown("### 📡 Archived Threat Feed")
         try:
             import json as _hjson
             _saved_points = _hjson.loads(_history_data.get('map_data_json', '[]'))
+            # Sort points by timestamp just in case
+            _saved_points = sorted(_saved_points, key=lambda x: x.get('timestamp', ''))
+        except Exception:
+            _saved_points = []
+
+        _is_playing = st.session_state.get('historical_playback', False)
+
+        st.markdown("""
+        <style>
+        .neon-btn-play button {
+            background-color: transparent !important;
+            border: 2px solid #00D4FF !important;
+            color: #00D4FF !important;
+            font-family: 'Orbitron', 'Roboto Mono', monospace !important;
+            font-weight: 900 !important;
+            letter-spacing: 1.5px !important;
+            transition: all 0.3s ease !important;
+            border-radius: 8px !important;
+        }
+        .neon-btn-play button:hover {
+            background-color: rgba(0, 212, 255, 0.1) !important;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.6) !important;
+            text-shadow: 0 0 8px #00D4FF !important;
+        }
+        .neon-btn-stop button {
+            background-color: transparent !important;
+            border: 2px solid #FF4B4B !important;
+            color: #FF4B4B !important;
+            font-family: 'Orbitron', 'Roboto Mono', monospace !important;
+            font-weight: 900 !important;
+            letter-spacing: 1.5px !important;
+            transition: all 0.3s ease !important;
+            border-radius: 8px !important;
+        }
+        .neon-btn-stop button:hover {
+            background-color: rgba(255, 75, 75, 0.1) !important;
+            box-shadow: 0 0 15px rgba(255, 75, 75, 0.6) !important;
+            text-shadow: 0 0 8px #FF4B4B !important;
+        }
+        .playback-log-container {
+            background-color: #050505;
+            border: 1px solid #1a1a1a;
+            border-radius: 8px;
+            padding: 10px;
+            height: 500px;
+            overflow-y: auto;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 12px;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.8);
+        }
+        .log-entry {
+            margin-bottom: 6px;
+            border-bottom: 1px solid #1a1a1a;
+            padding-bottom: 4px;
+        }
+        .log-time { color: #8b949e; font-weight: 700; }
+        .log-attack { color: #FF4B4B; font-weight: 900; }
+        .log-ip { color: #00D4FF; }
+        .log-conf { font-weight: 900; }
+        </style>
+        """, unsafe_allow_html=True)
+
+        if _is_playing and _saved_points:
+            col_ctrl, col_space = st.columns([2, 8])
+            with col_ctrl:
+                st.markdown('<div class="neon-btn-stop">', unsafe_allow_html=True)
+                if st.button("🛑 Stop Playback", use_container_width=True):
+                    st.session_state.historical_playback = False
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            st.markdown("<h3 style='text-align: center; color: #FF4B4B; text-shadow: 0 0 10px rgba(255,75,75,0.6);'>🎬 Attack Timeline Playback</h3>", unsafe_allow_html=True)
+            
+            p_col1, p_col2 = st.columns([7, 3])
+            with p_col1:
+                ph_playback_map = st.empty()
+            with p_col2:
+                ph_playback_log = st.empty()
+
+            import time
+            import pydeck as pdk
+            from geo_utils import HOME_BASE_COORDS
+
+            _p_view = pdk.ViewState(latitude=20.0, longitude=0.0, zoom=1.5, pitch=0)
+            _played_points = []
+            _log_entries = []
+
+            for i, pt in enumerate(_saved_points):
+                if not st.session_state.get('historical_playback', False):
+                    break
+
+                _played_points.append(pt)
+                
+                # Format log entry
+                t_stamp = pt.get('timestamp', '').split(' ')[-1] if ' ' in pt.get('timestamp', '') else pt.get('timestamp', '00:00')
+                a_type = pt.get('attack_type', 'Unknown')
+                s_ip = pt.get('src_ip', '0.0.0.0')
+                prob = pt.get('malicious_probability', 0)
+                conf_pct = int(prob * 100) if prob else 90
+                c_color = "#00FF41" if conf_pct >= 90 else "#f2cc60" if conf_pct >= 70 else "#FF8C00"
+                
+                log_html = f"<div class='log-entry'><span class='log-time'>[{t_stamp}]</span> - <span class='log-attack'>{a_type}</span> detected from <span class='log-ip'>{s_ip}</span> (Confidence: <span class='log-conf' style='color:{c_color};'>{conf_pct}%</span>)</div>"
+                _log_entries.insert(0, log_html) # Prepend so newest is at top
+                
+                # Render log
+                full_log_html = f"<div class='playback-log-container'>{''.join(_log_entries)}</div>"
+                ph_playback_log.markdown(full_log_html, unsafe_allow_html=True)
+                
+                # Render PyDeck map
+                _map_df = pd.DataFrame(_played_points)
+                # Ensure latitude and longitude are float
+                _map_df['latitude'] = pd.to_numeric(_map_df['latitude'], errors='coerce').fillna(0)
+                _map_df['longitude'] = pd.to_numeric(_map_df['longitude'], errors='coerce').fillna(0)
+                
+                # Filter out valid lat/lon
+                _valid_df = _map_df[(_map_df['latitude'] != 0) & (_map_df['longitude'] != 0)].copy()
+                
+                # Attack origins
+                scatter_layer = pdk.Layer(
+                    "ScatterplotLayer",
+                    data=_valid_df,
+                    get_position=["longitude", "latitude"],
+                    get_color=[255, 75, 75, 200],
+                    get_radius=80000,
+                    pickable=False
+                )
+                
+                # Current attack flashing (large radius)
+                curr_df = pd.DataFrame([pt])
+                curr_df['latitude'] = pd.to_numeric(curr_df['latitude'], errors='coerce').fillna(0)
+                curr_df['longitude'] = pd.to_numeric(curr_df['longitude'], errors='coerce').fillna(0)
+                flash_layer = pdk.Layer(
+                    "ScatterplotLayer",
+                    data=curr_df,
+                    get_position=["longitude", "latitude"],
+                    get_color=[255, 140, 0, 255],
+                    get_radius=300000,
+                    pickable=False
+                )
+                
+                # Attack Paths (ArcLayer)
+                _valid_df['home_lon'] = HOME_BASE_COORDS['lon']
+                _valid_df['home_lat'] = HOME_BASE_COORDS['lat']
+                arc_layer = pdk.Layer(
+                    "ArcLayer",
+                    data=_valid_df,
+                    get_source_position=["longitude", "latitude"],
+                    get_target_position=["home_lon", "home_lat"],
+                    get_source_color=[255, 75, 75, 150],
+                    get_target_color=[0, 212, 255, 200],
+                    get_width=3,
+                    pickable=False
+                )
+
+                _pdeck = pdk.Deck(
+                    map_style="dark",
+                    initial_view_state=_p_view,
+                    layers=[scatter_layer, flash_layer, arc_layer]
+                )
+                ph_playback_map.pydeck_chart(_pdeck, use_container_width=True)
+                
+                time.sleep(0.8)
+                
+            st.session_state.historical_playback = False
+            st.rerun()
+
+        else:
+            col_ctrl, col_space = st.columns([3, 7])
+            with col_ctrl:
+                st.markdown('<div class="neon-btn-play">', unsafe_allow_html=True)
+                if st.button("🎬 Play Attack Timeline", use_container_width=True) and _saved_points:
+                    st.session_state.historical_playback = True
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+            # Historical Map (Static)
+            st.markdown("<h3 style='text-align: center;'>🌍 Global Threat Radar (Archived)</h3>", unsafe_allow_html=True)
+            col_map_space1, col_map_center, col_map_space2 = st.columns([1, 8, 1])
+            with col_map_center:
+                map_json = _history_data.get('map_data_json', '[]')
+                render_historical_threat_map(map_json)
+            
+            st.divider()
+            
+            # Historical Streaming Feed (from saved map points)
+            st.markdown("### 📡 Archived Threat Feed")
             if _saved_points:
                 st.markdown("""
                 <style>
@@ -1371,8 +1648,6 @@ with tab_dashboard:
                 st.markdown(feed_html, unsafe_allow_html=True)
             else:
                 st.info("No threat data recorded for this session.")
-        except Exception:
-            st.info("No threat feed data available.")
         
         st.divider()
         
@@ -1509,15 +1784,38 @@ with tab_dashboard:
             .sev-CRITICAL { color: #FF4B4B !important; font-weight: 900 !important; text-shadow: 0 0 8px #FF4B4B; }
             .sev-HIGH { color: #f2cc60 !important; font-weight: 900 !important; }
             .sev-NORMAL { color: #00FF41 !important; font-weight: bold; }
+            .conf-gauge { display: flex; align-items: center; gap: 8px; }
+            .conf-bar-bg { width: 60px; height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; }
+            .conf-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
+            .conf-pct { font-family: 'Roboto Mono', monospace; font-size: 13px; font-weight: 900; }
+            .conf-certain { color: #00FF41; text-shadow: 0 0 8px rgba(0,255,65,0.6); }
+            .conf-likely { color: #f2cc60; text-shadow: 0 0 8px rgba(242,204,96,0.5); }
+            .conf-investigate { color: #FF8C00; text-shadow: 0 0 8px rgba(255,140,0,0.5); }
             </style>
             """, unsafe_allow_html=True)
 
-            table_html = "<table class='streaming-table'><tr><th>TIMESTAMP</th><th>SRC IP</th><th>DST IP</th><th>THREAT TYPE</th><th>SEVERITY</th><th>SCORE</th></tr>"
+            table_html = "<table class='streaming-table'><tr><th>TIMESTAMP</th><th>SRC IP</th><th>DST IP</th><th>THREAT TYPE</th><th>SEVERITY</th><th>🧠 AI CONFIDENCE</th></tr>"
             for _, row in df_alerts.head(15).iterrows():
                 sev = row.get("severity", "NORMAL").upper()
                 sev_class = f"sev-{sev}"
-                score = f"{row.get('anomaly_score', 0):.4f}"
-                table_html += f"<tr><td>{row.get('timestamp')}</td><td>{row.get('src_ip')}</td><td>{row.get('dst_ip')}</td><td>{row.get('attack_type')}</td><td class='{sev_class}'>{sev}</td><td>{score}</td></tr>"
+                prob = float(row.get('malicious_probability', 0))
+                conf_pct = int(prob * 100)
+                if conf_pct >= 90:
+                    conf_class = "conf-certain"
+                    bar_color = "#00FF41"
+                elif conf_pct >= 70:
+                    conf_class = "conf-likely"
+                    bar_color = "#f2cc60"
+                else:
+                    conf_class = "conf-investigate"
+                    bar_color = "#FF8C00"
+                conf_html = (
+                    f"<div class='conf-gauge'>"
+                    f"<span class='conf-pct {conf_class}'>{conf_pct}%</span>"
+                    f"<div class='conf-bar-bg'><div class='conf-bar-fill' style='width:{conf_pct}%; background:{bar_color};'></div></div>"
+                    f"</div>"
+                )
+                table_html += f"<tr><td>{row.get('timestamp')}</td><td>{row.get('src_ip')}</td><td>{row.get('dst_ip')}</td><td>{row.get('attack_type')}</td><td class='{sev_class}'>{sev}</td><td>{conf_html}</td></tr>"
             table_html += "</table>"
             st.markdown(table_html, unsafe_allow_html=True)
         else:
@@ -2181,6 +2479,8 @@ with tab_corporate:
             
         if start_scan:
             st.session_state.stop_scan = False
+            st.session_state.scan_initiated = True
+            st.session_state.last_upload_total_flows = len(st.session_state.uploaded_df)
             try:
                 df_upload = st.session_state.uploaded_df.copy()
                 from preprocessing import prepare_data_for_prediction
@@ -2285,10 +2585,14 @@ with tab_corporate:
                 recent_flows = []
                 cmd_logs = []
                 live_alerts = []
+                _last_map_count = 0  # Track when to update the map
                 
                 import time
                 import pydeck as pdk
                 import random
+                
+                # Create a SINGLE stable ViewState — reused across all updates
+                _stable_view = pdk.ViewState(latitude=20.0, longitude=0.0, zoom=1, pitch=0)
                 
                 scan_start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
@@ -2406,40 +2710,41 @@ with tab_corporate:
                         # Use markdown/code to avoid DuplicateWidgetID issues in loop
                         ph_cmd_log.markdown(f"```bash\n{log_str}\n```")
                         
-                        # Render Live UI map if there are alerts
-                        if live_alerts:
-                            map_data = pd.DataFrame(live_alerts)
-                            layer = pdk.Layer(
-                                'ScatterplotLayer',
-                                data=map_data,
-                                get_position='[lon, lat]',
-                                get_color=[255, 0, 0, 255],
-                                get_radius=180000,
-                                pickable=True,
-                                auto_highlight=True,
-                                radius_min_pixels=15,
-                                radius_max_pixels=20
-                            )
-                            pulse = pdk.Layer(
-                                'ScatterplotLayer',
-                                data=map_data,
-                                get_position='[lon, lat]',
-                                get_color=[255, 0, 0, 60],
-                                get_radius=500000,
-                                pickable=False,
-                            )
-                            static_view = pdk.ViewState(latitude=20.0, longitude=0.0, zoom=1, pitch=0)
-                            
-                            ph_map.pydeck_chart(pdk.Deck(
-                                layers=[pulse, layer], 
-                                initial_view_state=static_view, 
-                                map_style=pdk.map_styles.CARTO_DARK_MATTER
-                            ))
-                        else:
-                            ph_map.pydeck_chart(pdk.Deck(
-                                initial_view_state=pdk.ViewState(latitude=20.0, longitude=0.0, zoom=1, pitch=0),
-                                map_style=pdk.map_styles.CARTO_DARK_MATTER
-                            ))
+                        # Render Live UI map ONLY when new threats are added (prevents shaking)
+                        if len(live_alerts) != _last_map_count:
+                            _last_map_count = len(live_alerts)
+                            if live_alerts:
+                                map_data = pd.DataFrame(live_alerts)
+                                layer = pdk.Layer(
+                                    'ScatterplotLayer',
+                                    data=map_data,
+                                    get_position='[lon, lat]',
+                                    get_color=[255, 0, 0, 255],
+                                    get_radius=180000,
+                                    pickable=True,
+                                    auto_highlight=True,
+                                    radius_min_pixels=15,
+                                    radius_max_pixels=20
+                                )
+                                pulse = pdk.Layer(
+                                    'ScatterplotLayer',
+                                    data=map_data,
+                                    get_position='[lon, lat]',
+                                    get_color=[255, 0, 0, 60],
+                                    get_radius=500000,
+                                    pickable=False,
+                                )
+                                
+                                ph_map.pydeck_chart(pdk.Deck(
+                                    layers=[pulse, layer], 
+                                    initial_view_state=_stable_view, 
+                                    map_style="dark"
+                                ))
+                            else:
+                                ph_map.pydeck_chart(pdk.Deck(
+                                    initial_view_state=_stable_view,
+                                    map_style="dark"
+                                ))
                         
                         time.sleep(0.3)
 
@@ -2504,3 +2809,272 @@ with tab_corporate:
                     
             except Exception as e:
                 st.error(f"Live stream processing error: {e}")
+            st.rerun()
+
+
+
+def render_executive_dashboard():
+    import plotly.graph_objects as go
+    import pandas as pd
+    import re
+
+    st.markdown("""
+    <style>
+    .exec-card { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 12px; padding: 20px; text-align: center; height: 100%; box-shadow: inset 0 0 15px rgba(0,0,0,0.8); }
+    .exec-value { font-family: 'Orbitron', monospace; font-size: 28px; font-weight: 900; margin-bottom: 5px; }
+    .exec-label { font-family: 'Roboto Mono', monospace; font-size: 13px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
+    .exec-briefing { background: rgba(0, 212, 255, 0.05); border-left: 4px solid #00D4FF; padding: 20px; font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.6; border-radius: 0 12px 12px 0; margin-bottom: 25px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<br><h2 style='color: #00D4FF; font-family: Orbitron; text-align: center; letter-spacing: 2px;'>EXECUTIVE BUSINESS INTELLIGENCE</h2>", unsafe_allow_html=True)
+
+    if "alerts" not in st.session_state or len(st.session_state.alerts) == 0:
+        st.info("No threat data available for business intelligence.")
+        return
+
+    df_alerts = pd.DataFrame(st.session_state.alerts)
+    total_flows = st.session_state.get('last_upload_total_flows', len(df_alerts))
+    malicious_count = len(df_alerts)
+    
+    assets_targeted = df_alerts['dst_ip'].nunique()
+    top_threat = df_alerts['attack_type'].value_counts().index[0] if not df_alerts.empty else "Unknown"
+    top_attacker = df_alerts['src_ip'].value_counts().index[0] if not df_alerts.empty else "Unknown"
+    
+    total_bytes = 0
+    if 'details' in df_alerts.columns:
+        for det in df_alerts['details']:
+            match = re.search(r'(\d+)B \/ (\d+)B', str(det))
+            if match:
+                total_bytes += int(match.group(1)) + int(match.group(2))
+    
+    if total_bytes > 0:
+        if total_bytes > 1024 * 1024:
+            bw_str = f"{total_bytes / (1024 * 1024):.2f} MB"
+        elif total_bytes > 1024:
+            bw_str = f"{total_bytes / 1024:.2f} KB"
+        else:
+            bw_str = f"{total_bytes} B"
+    else:
+        bw_str = f"{malicious_count} Conn"
+
+    if "CRITICAL" in df_alerts['severity'].values or "Backdoor" in df_alerts['attack_type'].values or malicious_count > (total_flows * 0.3):
+        risk_level = "CRITICAL 🔴"
+        risk_color = "#FF4B4B"
+    elif malicious_count > (total_flows * 0.1):
+        risk_level = "HIGH 🟠"
+        risk_color = "#f2cc60"
+    else:
+        risk_level = "MODERATE 🟡"
+        risk_color = "#f2cc60"
+
+    lang = st.radio("Select Briefing Language / اختر لغة التقرير:", ["English", "العربية"], horizontal=True)
+    
+    if lang == "English":
+        briefing = f"**System Analysis Summary:** Out of **{total_flows}** total network connections analyzed, **{malicious_count}** were identified as malicious. The primary threat detected was **{top_threat}**, originating mostly from the external IP **{top_attacker}**. The attack targeted **{assets_targeted}** internal company asset(s). Immediate blocking protocols have been applied to quarantine the sources. The overall business risk level for this session is assessed as **{risk_level.split(' ')[0]}**."
+    else:
+        briefing = f"**ملخص التحليل الأمني:** من إجمالي **{total_flows}** اتصال شبكي تم فحصه، اكتشف النظام **{malicious_count}** اتصال خبيث. التهديد الرئيسي كان هجوم من نوع **{top_threat}**، وكان مصدره الأساسي هو الـ IP الخارجي **{top_attacker}**. استهدف هذا الهجوم **{assets_targeted}** أجهزة/سيرفرات داخلية للشركة. تم تفعيل بروتوكولات الحظر التلقائي لعزل المصادر. يُقدر مستوى الخطر العام على البزنس في هذه الجلسة بأنه **{risk_level.split(' ')[0]}**."
+
+    st.markdown(f'<div class="exec-briefing" dir="{"rtl" if lang == "العربية" else "ltr"}">{briefing}</div>', unsafe_allow_html=True)
+
+    mc1, mc2, mc3 = st.columns(3)
+    with mc1:
+        st.markdown(f'<div class="exec-card"><div class="exec-value" style="color: #FF4B4B;">{bw_str}</div><div class="exec-label">Malicious Bandwidth Wasted</div></div>', unsafe_allow_html=True)
+    with mc2:
+        st.markdown(f'<div class="exec-card"><div class="exec-value" style="color: #00D4FF;">{assets_targeted}</div><div class="exec-label">Internal Assets Targeted</div></div>', unsafe_allow_html=True)
+    with mc3:
+        st.markdown(f'<div class="exec-card"><div class="exec-value" style="color: {risk_color};">{risk_level}</div><div class="exec-label">Overall Business Risk</div></div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    st.markdown("<h4 style='color: #e6edf3; font-family: Roboto Mono; text-align: center; margin-bottom: 20px;'>🔗 Attack Relationship Flow (Who ➔ What ➔ Where)</h4>", unsafe_allow_html=True)
+    
+    sankey_df = df_alerts.groupby(['src_ip', 'attack_type', 'dst_ip']).size().reset_index(name='count').sort_values(by='count', ascending=False).head(15)
+    
+    if not sankey_df.empty:
+        all_nodes = list(pd.concat([sankey_df['src_ip'], sankey_df['attack_type'], sankey_df['dst_ip']]).unique())
+        node_indices = {node: i for i, node in enumerate(all_nodes)}
+        
+        source = []
+        target = []
+        value = []
+        
+        for _, row in sankey_df.groupby(['src_ip', 'attack_type'])['count'].sum().reset_index().iterrows():
+            source.append(node_indices[row['src_ip']])
+            target.append(node_indices[row['attack_type']])
+            value.append(row['count'])
+            
+        for _, row in sankey_df.groupby(['attack_type', 'dst_ip'])['count'].sum().reset_index().iterrows():
+            source.append(node_indices[row['attack_type']])
+            target.append(node_indices[row['dst_ip']])
+            value.append(row['count'])
+            
+        node_colors = []
+        for node in all_nodes:
+            if node in sankey_df['src_ip'].values:
+                node_colors.append('#FF4B4B') 
+            elif node in sankey_df['attack_type'].values:
+                node_colors.append('#f2cc60') 
+            else:
+                node_colors.append('#00D4FF') 
+
+        fig_sankey = go.Figure(data=[go.Sankey(
+            node = dict(
+              pad = 20,
+              thickness = 25,
+              line = dict(color = "black", width = 0.5),
+              label = all_nodes,
+              color = node_colors
+            ),
+            link = dict(
+              source = source,
+              target = target,
+              value = value,
+              color = "rgba(255, 255, 255, 0.1)"
+            )
+        )])
+        
+        fig_sankey.update_layout(height=400, margin=dict(l=0, r=0, t=10, b=10), paper_bgcolor='rgba(0,0,0,0)', font={'color': "#e6edf3", 'family': "Roboto Mono"})
+        st.plotly_chart(fig_sankey, use_container_width=True)
+    else:
+        st.info("Not enough diverse flow data to generate a relationship graph.")
+        
+    st.markdown("<hr style='border-color: #1a1a1a;'>", unsafe_allow_html=True)
+
+
+def render_deep_analysis_dashboard():
+    import plotly.express as px
+    import plotly.graph_objects as go
+    import pandas as pd
+    
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    with st.expander("🔍 DEEP ANALYSIS DASHBOARD (POST-SCAN AUDIT)", expanded=True):
+        st.markdown("""
+        <style>
+        .dad-header { color: #00D4FF; font-family: 'Orbitron', monospace; font-weight: 900; letter-spacing: 2px; text-shadow: 0 0 10px rgba(0,212,255,0.5); text-align: center; margin-bottom: 20px; }
+        .dad-card { background: #050505; border: 1px solid #1a1a1a; border-radius: 12px; padding: 20px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); height: 100%; margin-bottom: 15px;}
+        .dad-title { color: #e6edf3; font-family: 'Roboto Mono', monospace; font-size: 16px; font-weight: 700; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        </style>
+        <h2 class="dad-header">FORENSIC INTELLIGENCE AUDIT</h2>
+        """, unsafe_allow_html=True)
+
+        if "alerts" not in st.session_state or len(st.session_state.alerts) == 0:
+            st.info("No threats detected to analyze.")
+            return
+
+        df_alerts = pd.DataFrame(st.session_state.alerts)
+        
+        # 1. Top Talkers Filter
+        top_ips = df_alerts['src_ip'].value_counts().head(5).index.tolist()
+        filter_ip = st.selectbox("🎯 Select Top Talker IP for Forensic Audit:", ["ALL IPs"] + top_ips)
+        
+        if filter_ip != "ALL IPs":
+            df_alerts = df_alerts[df_alerts['src_ip'] == filter_ip]
+
+        if df_alerts.empty:
+            st.warning("No data for the selected IP.")
+            return
+
+        with st.spinner("Generating Forensic Visualizations..."):
+            c1, c2 = st.columns(2)
+            
+            # Quadrant A: Donut Chart & Severity Gauge
+            with c1:
+                st.markdown('<div class="dad-card"><div class="dad-title">📊 Threat Distribution & Global Severity</div>', unsafe_allow_html=True)
+                
+                malicious_ratio = len(df_alerts) / max(st.session_state.get('last_upload_total_flows', 1), 1)
+                # Cap at 100, scale up slightly for visual effect
+                severity_score = min(int((malicious_ratio + 0.1) * 100 * 1.5), 100)
+                gauge_color = "#00FF41" if severity_score <= 30 else "#f2cc60" if severity_score <= 70 else "#FF4B4B"
+                
+                fig_gauge = go.Figure(go.Indicator(
+                    mode = "gauge+number",
+                    value = severity_score,
+                    domain = {'x': [0, 1], 'y': [0, 1]},
+                    title = {'text': "Severity Score", 'font': {'color': '#e6edf3', 'size': 14}},
+                    gauge = {
+                        'axis': {'range': [None, 100], 'tickcolor': "#333"},
+                        'bar': {'color': gauge_color},
+                        'bgcolor': "#050505",
+                        'borderwidth': 2,
+                        'bordercolor': "#1a1a1a",
+                        'steps': [
+                            {'range': [0, 30], 'color': "rgba(0, 255, 65, 0.1)"},
+                            {'range': [30, 70], 'color': "rgba(242, 204, 96, 0.1)"},
+                            {'range': [70, 100], 'color': "rgba(255, 75, 75, 0.1)"}],
+                    }
+                ))
+                fig_gauge.update_layout(height=180, margin=dict(l=20, r=20, t=30, b=10), paper_bgcolor='rgba(0,0,0,0)', font={'color': "#e6edf3", 'family': "Roboto Mono"})
+                st.plotly_chart(fig_gauge, use_container_width=True)
+
+                dist_df = df_alerts['attack_type'].value_counts().reset_index()
+                dist_df.columns = ['Attack Type', 'Count']
+                fig_donut = px.pie(dist_df, values='Count', names='Attack Type', hole=0.6,
+                                  color_discrete_sequence=['#FF4B4B', '#f2cc60', '#a371f7', '#00D4FF'])
+                fig_donut.update_layout(height=200, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor='rgba(0,0,0,0)',
+                                        plot_bgcolor='rgba(0,0,0,0)', font={'color': "#e6edf3", 'family': "Roboto Mono"}, showlegend=True)
+                st.plotly_chart(fig_donut, use_container_width=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Quadrant B: Top Talkers Table
+            with c2:
+                st.markdown('<div class="dad-card"><div class="dad-title">☠️ Top Attack Sources (Forensic Table)</div>', unsafe_allow_html=True)
+                top_table = df_alerts.groupby(['src_ip', 'attack_type']).size().reset_index(name='Hits')
+                top_table = top_table.sort_values(by='Hits', ascending=False).head(8)
+                
+                table_html = "<table style='width: 100%; border-collapse: collapse; font-family: Roboto Mono; font-size: 13px;'>"
+                table_html += "<tr style='background: #121212; color: #00D4FF; text-align: left;'><th style='padding: 8px;'>SOURCE IP</th><th style='padding: 8px;'>THREAT TYPE</th><th style='padding: 8px;'>HITS</th></tr>"
+                for _, row in top_table.iterrows():
+                    table_html += f"<tr style='border-bottom: 1px solid #1a1a1a;'><td style='padding: 8px; color: #FF4B4B;'>{row['src_ip']}</td><td style='padding: 8px;'>{row['attack_type']}</td><td style='padding: 8px; color: #f2cc60;'>{row['Hits']}</td></tr>"
+                table_html += "</table><br><br><br>"
+                st.markdown(table_html, unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            c3, c4 = st.columns(2)
+            
+            # Quadrant C: Behavior Timeline
+            with c3:
+                st.markdown('<div class="dad-card"><div class="dad-title">⏱️ Behavior Timeline (Jitter / Interpacket)</div>', unsafe_allow_html=True)
+                df_alerts['Index'] = range(len(df_alerts))
+                fig_scatter = px.scatter(df_alerts, x='Index', y='anomaly_score', color='attack_type',
+                                         color_discrete_sequence=['#FF4B4B', '#f2cc60', '#a371f7', '#00D4FF'],
+                                         labels={'Index': 'Time Sequence', 'anomaly_score': 'Anomaly Variance'})
+                fig_scatter.update_layout(height=280, margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor='rgba(0,0,0,0)',
+                                        plot_bgcolor='rgba(0,0,0,0)', font={'color': "#e6edf3", 'family': "Roboto Mono"})
+                fig_scatter.update_xaxes(showgrid=True, gridcolor='#1a1a1a')
+                fig_scatter.update_yaxes(showgrid=True, gridcolor='#1a1a1a')
+                st.plotly_chart(fig_scatter, use_container_width=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            # Quadrant D: Feature Importance
+            with c4:
+                st.markdown('<div class="dad-card"><div class="dad-title">🧠 Explainable AI (Why this decision?)</div>', unsafe_allow_html=True)
+                try:
+                    if hasattr(loaded_models, 'stage1_xgb') and hasattr(loaded_models.stage1_xgb, 'feature_importances_'):
+                        importances = loaded_models.stage1_xgb.feature_importances_
+                        from config import FEATURES
+                        imp_df = pd.DataFrame({'Feature': FEATURES[:len(importances)], 'Importance': importances})
+                        imp_df = imp_df.sort_values(by='Importance', ascending=True).tail(6)
+                        
+                        fig_bar = px.bar(imp_df, x='Importance', y='Feature', orientation='h', color='Importance', color_continuous_scale='Purp')
+                        fig_bar.update_layout(height=280, margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor='rgba(0,0,0,0)',
+                                            plot_bgcolor='rgba(0,0,0,0)', font={'color': "#e6edf3", 'family': "Roboto Mono"}, showlegend=False, coloraxis_showscale=False)
+                        fig_bar.update_xaxes(showgrid=True, gridcolor='#1a1a1a')
+                        fig_bar.update_yaxes(showgrid=False)
+                        st.plotly_chart(fig_bar, use_container_width=True)
+                    else:
+                        st.info("XAI Data not available in current model state.")
+                except Exception as e:
+                    st.error(f"XAI Error: {e}")
+                st.markdown('</div>', unsafe_allow_html=True)
+
+# ==============================
+#  TAB 5: DEEP ANALYSIS
+# ==============================
+with tab_deep_analysis:
+    if st.session_state.get('scan_initiated', False) or st.session_state.get('last_upload_total_flows', 0) > 0:
+        render_executive_dashboard()
+        render_deep_analysis_dashboard()
+    else:
+        st.info("Please upload data and run a Live Feed scan in the Corporate Portal to unlock Deep Analysis.")
+

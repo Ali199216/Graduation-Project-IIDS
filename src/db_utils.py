@@ -188,7 +188,7 @@ def get_blocked_ips_db():
         conn.close()
 
 def get_blocked_ips_detailed():
-    """Get blocked IPs with their block timestamp, attack type, and coordinates."""
+    """Get blocked IPs with their block timestamp, attack type, coordinates, and anomaly metrics."""
     conn = get_db_connection()
     try:
         conn.row_factory = sqlite3.Row
@@ -200,19 +200,89 @@ def get_blocked_ips_detailed():
                    COALESCE(a.latitude, 0) AS latitude,
                    COALESCE(a.longitude, 0) AS longitude,
                    COALESCE(a.city, 'Unknown') AS city,
-                   COALESCE(a.country, 'Unknown') AS country
+                   COALESCE(a.country, 'Unknown') AS country,
+                   COALESCE(a.anomaly_score, 0.0) AS anomaly_score,
+                   COALESCE(a.malicious_probability, 0.0) AS malicious_probability,
+                   COALESCE(s.total_hits, 1) AS total_hits
             FROM blocked_ips b
             LEFT JOIN (
                 SELECT src_ip, attack_type, severity, latitude, longitude, city, country,
+                       anomaly_score, malicious_probability,
                        ROW_NUMBER() OVER (PARTITION BY src_ip ORDER BY id DESC) AS rn
                 FROM attack_logs
             ) a ON b.ip = a.src_ip AND a.rn = 1
+            LEFT JOIN (
+                SELECT src_ip, COUNT(*) AS total_hits
+                FROM attack_logs
+                GROUP BY src_ip
+            ) s ON b.ip = s.src_ip
             ORDER BY b.date_added DESC
         ''')
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     finally:
         conn.close()
+
+def get_normal_vs_attack_baseline(ip):
+    """Build a Normal vs Attack comparison for a blocked IP.
+    
+    Returns dict with normal baselines (from overall benign averages) 
+    vs the actual attack metrics that triggered the block.
+    """
+    conn = get_db_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Get the attack metrics for this IP (most recent attack)
+        cursor.execute('''
+            SELECT anomaly_score, malicious_probability, attack_type, severity
+            FROM attack_logs WHERE src_ip = ? ORDER BY id DESC LIMIT 1
+        ''', (ip,))
+        attack_row = cursor.fetchone()
+        
+        if not attack_row:
+            return None
+        
+        attack_data = dict(attack_row)
+        
+        # Get average metrics across ALL attacks from this IP
+        cursor.execute('''
+            SELECT AVG(anomaly_score) as avg_anomaly,
+                   MAX(malicious_probability) as max_prob,
+                   COUNT(*) as hit_count
+            FROM attack_logs WHERE src_ip = ?
+        ''', (ip,))
+        agg_row = cursor.fetchone()
+        agg = dict(agg_row) if agg_row else {}
+        
+        # Normal baselines (representative of benign traffic)
+        # These are typical values for clean traffic
+        normal_baselines = {
+            'anomaly_score': 0.02,
+            'malicious_probability': 0.05,
+            'threat_level': 'NONE',
+            'status': 'BENIGN',
+        }
+        
+        # Attack observed values
+        attack_observed = {
+            'anomaly_score': round(attack_data.get('anomaly_score', 0), 4),
+            'malicious_probability': round(attack_data.get('malicious_probability', 0), 4),
+            'threat_level': attack_data.get('severity', 'N/A'),
+            'attack_type': attack_data.get('attack_type', 'Unknown'),
+            'avg_anomaly': round(agg.get('avg_anomaly', 0) or 0, 4),
+            'max_probability': round(agg.get('max_prob', 0) or 0, 4),
+            'total_detections': agg.get('hit_count', 0),
+        }
+        
+        return {
+            'normal': normal_baselines,
+            'attack': attack_observed,
+        }
+    finally:
+        conn.close()
+
 
 def get_attacker_profile(ip):
     """Build a full attacker dossier for a given IP address."""

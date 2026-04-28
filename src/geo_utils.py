@@ -32,6 +32,26 @@ MOCK_CITIES = [
 # Used as the destination endpoint for Attack Path Visualization lines
 HOME_BASE_COORDS = {"city": "Cairo", "country": "Egypt", "lat": 30.0444, "lon": 31.2357}
 
+# Country name → flag emoji mapping for forensic table display
+COUNTRY_FLAGS = {
+    "United Kingdom": "🇬🇧", "Japan": "🇯🇵", "United States": "🇺🇸",
+    "Germany": "🇩🇪", "Egypt": "🇪🇬", "France": "🇫🇷",
+    "Australia": "🇦🇺", "Russia": "🇷🇺", "China": "🇨🇳",
+    "Brazil": "🇧🇷", "India": "🇮🇳", "Canada": "🇨🇦",
+    "South Africa": "🇿🇦", "South Korea": "🇰🇷", "Argentina": "🇦🇷",
+    "Turkey": "🇹🇷", "Nigeria": "🇳🇬", "UAE": "🇦🇪",
+    "Singapore": "🇸🇬", "Mexico": "🇲🇽", "Italy": "🇮🇹",
+    "Spain": "🇪🇸", "Netherlands": "🇳🇱", "Sweden": "🇸🇪",
+    "Norway": "🇳🇴", "Poland": "🇵🇱", "Indonesia": "🇮🇩",
+    "Thailand": "🇹🇭", "Vietnam": "🇻🇳", "Iran": "🇮🇷",
+    "Israel": "🇮🇱", "Ukraine": "🇺🇦", "Romania": "🇷🇴",
+    "Unknown": "🚩",
+}
+
+def get_country_flag(country_name: str) -> str:
+    """Return flag emoji for a country name. Falls back to 🚩 for unknowns."""
+    return COUNTRY_FLAGS.get(country_name, "🚩")
+
 def _get_mock_location():
     """Returns a random location with significant cluster jittering"""
     loc = random.choice(MOCK_CITIES)

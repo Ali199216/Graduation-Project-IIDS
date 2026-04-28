@@ -177,9 +177,16 @@ def _add_attack_path_lines(m, df):
         ).add_to(m)
 
 
+def _folium_to_html(m, height=500):
+    """Convert a folium Map to a self-contained HTML string for stable rendering."""
+    map_html = m._repr_html_()
+    # Wrap in a fixed-height container to prevent layout shifts
+    return f'<div style="width:100%;height:{height}px;border-radius:12px;overflow:hidden;">{map_html}</div>'
+
+
 def render_global_threat_map():
     import folium
-    from streamlit_folium import st_folium
+    from streamlit.components.v1 import html as st_html
     
     conn = get_db_connection()
     # 1. Connect to SQLite and fetch logs
@@ -245,8 +252,6 @@ def render_global_threat_map():
                 weight=2
             ).add_to(m)
     
-    # ── ATTACK PATH LINES ("Neon Trails") ──
-    _add_attack_path_lines(m, df)
     
     # Render highlighted IP pulse marker
     if _highlight:
@@ -304,11 +309,8 @@ def render_global_threat_map():
             ''')
         ).add_to(m)
 
-    # 5. Integration: Return map to st_folium
-    _map_key = f"threat_map_{len(df)}"
-    if _highlight:
-        _map_key += f"_hl_{_highlight.get('ip','')}"
-    st_folium(m, key=_map_key, width=1200, height=500, returned_objects=[])
+    # 5. Render map as static HTML component (prevents iframe re-mounting on reruns)
+    st_html(_folium_to_html(m, height=500), height=520)
 
 def render_top_countries():
     conn = get_db_connection()
@@ -342,7 +344,7 @@ def render_historical_threat_map(map_data_json):
     """Render threat map from archived JSON data (for Session History replay)."""
     import folium
     import json
-    from streamlit_folium import st_folium
+    from streamlit.components.v1 import html as st_html
     
     try:
         data = json.loads(map_data_json) if isinstance(map_data_json, str) else map_data_json
@@ -357,9 +359,6 @@ def render_historical_threat_map(map_data_json):
     }
     
     m = folium.Map(location=[20, 0], zoom_start=2, tiles='CartoDB dark_matter')
-    
-    # Build a DataFrame from data for attack path lines
-    path_records = []
     
     for point in data:
         lat = point.get('latitude', 0)
@@ -389,19 +388,6 @@ def render_historical_threat_map(map_data_json):
             fill_opacity=0.8,
             weight=2
         ).add_to(m)
-        
-        path_records.append({
-            'latitude': lat,
-            'longitude': lon,
-            'attack_type': attack,
-            'src_ip': point.get('src_ip', 'N/A'),
-            'dst_ip': point.get('dst_ip', 'Target'),
-            'timestamp': point.get('timestamp', ''),
-        })
     
-    # ── ATTACK PATH LINES for historical data ──
-    if path_records:
-        df_paths = pd.DataFrame(path_records)
-        _add_attack_path_lines(m, df_paths)
-    
-    st_folium(m, key=f"history_map_{len(data)}", width=1200, height=500, returned_objects=[])
+    # Render as static HTML component (prevents shaking on rerun)
+    st_html(_folium_to_html(m, height=500), height=520)
