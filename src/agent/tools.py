@@ -85,14 +85,7 @@ def _run_pipeline(flow_dict: dict) -> dict:
                 result["attack_type"] = "Unknown"
                 result["attack_description"] = "Could not classify attack type."
 
-        # Feature importance (top 5)
-        if hasattr(models.stage1_xgb, "feature_importances_"):
-            importances = models.stage1_xgb.feature_importances_
-            top_indices = np.argsort(importances)[::-1][:5]
-            result["top_features"] = [
-                {"feature": FEATURES[i], "importance": round(float(importances[i]), 4)}
-                for i in top_indices if i < len(FEATURES)
-            ]
+        # Feature importance removed to save LLM context tokens
 
         return result
     
@@ -177,7 +170,7 @@ def analyze_flow(
     if result["is_malicious"]:
         severity = "CRITICAL" if result["malicious_probability"] > 0.85 else "HIGH"
         shap_explanation = get_shap_explanation(models.stage1_xgb, flow)
-        result["shap_explanation"] = shap_explanation
+        # We don't add shap_explanation to result to save LLM tokens
         
         alert = _create_alert(
             src_ip=src_ip, dst_ip=dst_ip,

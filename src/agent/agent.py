@@ -58,7 +58,7 @@ def create_agent(temperature: float = 0.1):
     models.load()
 
     llm = ChatGroq(
-        model="llama-3.1-8b-instant",
+        model="llama-3.3-70b-versatile",
         temperature=temperature,
         groq_api_key=os.getenv("GROQ_API_KEY"),
     )
@@ -78,6 +78,11 @@ def create_agent(temperature: float = 0.1):
             try:
                 chat_history = inputs.get("chat_history", [])
                 actual_input = inputs.get("input", "")
+                
+                # Truncate chat history to avoid Groq TPM limits
+                if len(chat_history) > 2:
+                    chat_history = chat_history[-2:]
+                    
                 messages = chat_history + [HumanMessage(content=actual_input)]
                 
                 result = self.agent.invoke({"messages": messages})
