@@ -43,6 +43,7 @@ def init_db():
             country TEXT,
             latitude REAL,
             longitude REAL,
+            alert_sent INTEGER DEFAULT 0,
             alert_sent INTEGER DEFAULT 0
         )
     ''')
