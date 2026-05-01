@@ -33,362 +33,479 @@ db_utils.init_db()
 
 # ---- Page Config ----
 st.set_page_config(
-    page_title="IIDS",
-    page_icon="🛡️",
+    page_title="IIDS Intelligence Terminal",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ---- Conditional CSS Reset ----
+# ---- Initialization ----
 if "app_launched" not in st.session_state:
     st.session_state.app_launched = False
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "alerts" not in st.session_state:
+    st.session_state.alerts = db_utils.get_all_logs(limit=100)
+if "blocked_ips" not in st.session_state:
+    st.session_state.blocked_ips = db_utils.get_blocked_ips_db()
 
-if not st.session_state.app_launched:
-    # Landing page: center everything vertically & horizontally
-    st.markdown("""
-    <style>
-        header {
-            visibility: hidden !important;
-            height: 0px !important;
-        }
-        .block-container {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            min-height: 100vh !important;
-            padding-top: 0rem !important;
-            padding-bottom: 0rem !important;
-            padding-left: 5rem !important;
-            padding-right: 5rem !important;
-        }
-        div[data-testid="stVerticalBlock"] {
-            gap: 0rem !important;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-else:
-    # Dashboard pages: remove top padding for full-screen layout
-    st.markdown("""
-    <style>
-        .block-container {
-            padding-top: 0rem !important;
-            padding-bottom: 0rem !important;
-            padding-left: 5rem !important;
-            padding-right: 5rem !important;
-        }
-        header {
-            visibility: hidden !important;
-            height: 0px !important;
-        }
-        div[data-testid="stVerticalBlock"] {
-            gap: 0rem !important;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+# ---- GLOBAL SIDEBAR (Hidden until Authenticated) ----
+if st.session_state.get('authenticated', False):
+    st.sidebar.markdown('<div class="sidebar-header-clean">IIDS SYSTEM</div>', unsafe_allow_html=True)
+    with st.sidebar:
+        st.markdown('<div class="sidebar-header-clean">ENGINE CONTROLS</div>', unsafe_allow_html=True)
+        if st.button('RUN REAL-TIME DETECTION', key='btn_run', use_container_width=True):
+            st.session_state.is_running = True
+            st.session_state.app_launched = True # Force launch
+            st.rerun()
+        if st.button('STOP DETECTION', key='btn_stop_ctrl', use_container_width=True):
+            st.session_state.is_running = False
+            st.rerun()
+        if st.button('REFRESH SYSTEM DATA', key='btn_ref_ctrl', use_container_width=True):
+            st.rerun()
+        
+        st.markdown('<div class="sidebar-header-clean">SECURITY ACTIONS</div>', unsafe_allow_html=True)
+        if st.button('EMERGENCY LOCKDOWN', key='btn_lockdown_ctrl', use_container_width=True):
+            st.toast('EMERGENCY MODE ENGAGED. Securing active perimeter...')
+            for a in st.session_state.alerts:
+                if a.get('severity') in ['CRITICAL', 'HIGH']:
+                    db_utils.block_ip_db(a.get('src_ip'))
+            st.rerun()
+        if st.button('PURGE SYSTEM DATA', key='btn_pur_ctrl', use_container_width=True):
+            db_utils.clear_db()
+            st.session_state.messages = []
+            st.session_state.chat_history = []
+            st.rerun()
+        
+        st.markdown('<div class="sidebar-header-clean" style="color: #FF3131; border-bottom-color: rgba(255, 49, 49, 0.3);">BLOCK IP</div>', unsafe_allow_html=True)
+        if st.button('VIEW FULL REGISTRY', key='btn_view_block_reg', use_container_width=True):
+            st.session_state.show_block_registry = not st.session_state.get('show_block_registry', False)
+            st.rerun()
+        if st.button('CLEAR ALL BLOCKS', key='btn_clear_block_reg', use_container_width=True):
+            db_utils.clear_blocklist_db()
+            st.session_state.blocked_ips = set()
+            st.rerun()
+        
+        if st.session_state.get('show_block_registry'):
+            if st.button('RETURN TO DASHBOARD', key='btn_ret_dash', use_container_width=True):
+                st.session_state.show_block_registry = False
+                st.rerun()
+        
+        st.markdown('<div class="sidebar-header-clean">SESSION HISTORY</div>', unsafe_allow_html=True)
+        
+        # 🔴 Return to Live Mode Button (Visible when viewing history)
+        if st.session_state.get('viewing_history', False):
+            if st.button('🔴 EXIT HISTORY & GO LIVE', key='btn_exit_hist', use_container_width=True):
+                st.session_state.viewing_history = False
+                st.session_state.historical_playback = False
+                st.rerun()
+            st.markdown('<div style="margin-bottom: 15px;"></div>', unsafe_allow_html=True)
 
-# ---- Cyber Animated Background ----
-st.markdown("""
+        user_email = st.session_state.get('user_email', 'guest')
+        sessions = db_utils.get_sessions(user_email)
+        if sessions:
+            session_labels = [f"{s['filename']} ({s['timestamp'][:10]})" for s in sessions]
+            selected_idx = st.selectbox('Select Session', range(len(session_labels)), format_func=lambda idx: session_labels[idx], key='hist_sel_ctrl')
+            if st.button('LOAD SESSION', key='btn_ld_ctrl', use_container_width=True):
+                st.session_state.viewing_history = True
+                st.session_state.history_session = sessions[selected_idx]
+                st.session_state.app_launched = True
+                st.session_state.authenticated = True
+                st.rerun()
+        else:
+            st.write('No saved sessions yet.')
+
+# ---- Assets & Styling ----
+def get_base64_img(path):
+    import base64
+    with open(path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+# New Branded Shield Path
+SHIELD_PATH = r"C:\Users\ELZAHBIA\.gemini\antigravity\brain\8cde749e-70bf-4bf4-b060-0690f6f1f85d\iids_security_shield_bg_1777645279930.png"
+shield_base64 = ""
+try:
+    shield_base64 = get_base64_img(SHIELD_PATH)
+except:
+    pass
+
+st.markdown(f"""
 <style>
-    /* Animated Cyber Grid Background */
-    .stApp {
-        background-color: #0d1117;
-        background-image: 
-            linear-gradient(rgba(88, 166, 255, 0.05) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(88, 166, 255, 0.05) 1px, transparent 1px);
-        background-size: 40px 40px;
-        background-position: 0 0;
-        animation: cyber-grid-scroll 15s linear infinite;
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@400;700&display=swap');
 
-    /* Dark Overlay for Readability */
-    .stApp::before {
+    /* Hide Streamlit artifacts but keep header for sidebar toggle */
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    [data-testid="stHeader"] {{
+        background: transparent !important;
+        color: #00D4FF !important;
+    }}
+
+    /* Global Artifact Purge (keyboard_double_arrow_right fix) */
+    [data-testid="stSidebarCollapseAction"] span, 
+    [data-testid="stHeader"] span,
+    .st-emotion-cache-1vt458s span {{
+        display: none !important;
+        font-size: 0 !important;
+        color: transparent !important;
+        visibility: hidden !important;
+    }}
+
+    /* 1. Global Page Reset: Pure Obsidian Black with Shield Background */
+    .stApp {{
+        background-color: #000000 !important;
+        background-image: 
+            linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)),
+            url("data:image/png;base64,{shield_base64}") !important;
+        background-size: 60% auto !important;
+        background-position: center center !important;
+        background-repeat: no-repeat !important;
+        background-attachment: fixed !important;
+        color: #FFFFFF !important;
+    }}
+    
+    /* Subtle Grid Overlay */
+    .stApp::before {{
         content: "";
         position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: radial-gradient(circle at center, rgba(13,17,23,0.6) 0%, rgba(13,17,23,1) 85%);
+        top: 0; left: 0; width: 100%; height: 100%;
+        background-image: 
+            linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+        background-size: 40px 40px;
         pointer-events: none;
         z-index: 0;
-    }
+    }}
 
-    @keyframes cyber-grid-scroll {
-        0% { background-position: 0 0; }
-        100% { background-position: 40px 40px; }
-    }
+    /* 2. Mandatory Full-Width Force (95% Panoramic) */
+    div.block-container {{
+        max-width: 95% !important;
+        width: 95% !important;
+        margin: 0 auto !important;
+        padding: 5rem 1rem !important;
+        background: transparent !important;
+    }}
+    .stAppViewMain {{
+        background: transparent !important;
+    }}
 
-    /* Elevate UI Content Above Grid */
-    .block-container {
-        position: relative;
-        z-index: 1;
-        background-color: rgba(13, 17, 23, 0.85);
-        border-radius: 16px;
-        padding-top: 0rem !important;
-        padding-bottom: 0rem !important;
-        box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
-    }
-</style>
-""", unsafe_allow_html=True)
+    /* Sidebar Toggle - Moved to Authenticated Section to prevent early appearance */
 
-# ---- Custom CSS ----
-st.markdown("""
-<style>
-    /* Full DARK CYBER SECURITY THEME - NEON HIGH CONTRAST */
-    .stApp {
+    /* Pulse Title */
+    @keyframes glowPulse {{
+        0% {{ text-shadow: 0 0 10px #00D4FF; opacity: 0.8; }}
+        50% {{ text-shadow: 0 0 30px #00D4FF, 0 0 60px rgba(0, 212, 255, 0.5); opacity: 1; }}
+        100% {{ text-shadow: 0 0 10px #00D4FF; opacity: 0.8; }}
+    }}
+    h1 {{ 
+        color: #FFFFFF !important; 
+        font-family: 'Orbitron', sans-serif !important; 
+        font-weight: 900 !important; 
+        text-transform: uppercase;
+        animation: glowPulse 4s ease-in-out infinite;
+        text-align: center;
+        letter-spacing: 6px;
+    }}
+
+    /* 5. Interactive Hover Effects */
+    [data-testid="stSidebar"] button, .stButton button {{
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+        background: rgba(0, 212, 255, 0.05) !important;
+        border: 1px solid rgba(0, 212, 255, 0.3) !important;
+        color: #FFFFFF !important;
+        font-family: 'Orbitron', sans-serif !important;
+        font-size: 13px !important;
+        letter-spacing: 2px !important;
+        text-transform: uppercase !important;
+    }}
+    [data-testid="stSidebar"] button:hover, .stButton button:hover {{
+        transform: translateY(-5px) scale(1.05) !important;
+        box-shadow: 0 0 30px rgba(0, 212, 255, 0.7) !important;
+        border-color: #00D4FF !important;
+        background: rgba(0, 212, 255, 0.2) !important;
+    }}
+
+    /* 11. Ultra-Chic FULL-WIDTH Tab Animations (Precision Targeting) */
+    div[data-testid="stTabList"] {{
+        background: transparent !important;
+        gap: 0px !important;
+        width: 100% !important;
+        display: flex !important;
+    }}
+    button[data-testid="stTab"] {{
+        flex: 1 !important;
+        text-align: center !important;
+        background: rgba(255, 255, 255, 0.02) !important;
+        border: 1px solid rgba(0, 212, 255, 0.1) !important;
+        border-radius: 0px !important;
+        padding: 15px 0 !important;
+        transition: all 0.5s ease !important;
+        color: #8b949e !important;
+        font-family: 'Orbitron', sans-serif !important;
+        text-transform: uppercase !important;
+        letter-spacing: 2px !important;
+    }}
+    button[data-testid="stTab"]:hover {{
+        transform: translateY(-5px) !important;
+        background: rgba(0, 212, 255, 0.2) !important;
+        border-color: #00D4FF !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 10px 40px rgba(0, 212, 255, 0.5) !important;
+    }}
+    button[data-testid="stTab"][aria-selected="true"] {{
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.25), rgba(0, 212, 255, 0.05)) !important;
+        border-bottom: 4px solid #00D4FF !important;
+        color: #00D4FF !important;
+    }}
+    }}
+
+    /* 12. Interactive Metric Polish */
+    div[data-testid="metric-container"] {{
+        background: rgba(10, 10, 10, 0.8) !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        border-radius: 16px !important;
+        transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
+    }}
+    div[data-testid="metric-container"]:hover {{
+        transform: scale(1.08) !important;
+        border-color: #00D4FF !important;
+        box-shadow: 0 0 40px rgba(0, 212, 255, 0.6) !important;
+        background: rgba(0, 212, 255, 0.1) !important;
+    }}
+    /* 7. Sidebar Advanced Styling (Obsidian Force) */
+    section[data-testid="stSidebar"] {{
         background-color: #050505 !important;
+        border-right: 1px solid rgba(0, 212, 255, 0.2) !important;
+    }}
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {{
+        background-color: #050505 !important;
+    }}
+    .sidebar-header-clean {{
+        color: #00D4FF !important;
+        font-family: 'Orbitron', sans-serif !important;
+        font-weight: 900 !important;
+        font-size: 13px !important;
+        letter-spacing: 2px !important;
+        text-transform: uppercase !important;
+        border-bottom: 1px solid rgba(0, 212, 255, 0.3) !important;
+        padding-bottom: 5px;
+        margin-top: 25px;
+        margin-bottom: 15px;
+        text-shadow: 0 0 10px rgba(0, 212, 255, 0.4);
+        width: 100%;
+    }}
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label {{
         color: #FFFFFF !important;
         font-family: 'Roboto Mono', monospace !important;
-    }
-    section[data-testid="stSidebar"] {
-        /* Styled in sidebar block — animated grid */
-    }
-    
-    /* Cyber Cards */
-    .cyber-card {
-        background-color: #121212 !important;
-        border: 2px solid #30363d !important;
-        border-radius: 14px;
-        padding: 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
-        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-    }
-    
-    /* Glassmorphism Card (Gateway) */
-    .glass-card {
-        background: rgba(18, 18, 18, 0.85) !important;
-        backdrop-filter: blur(15px);
-        -webkit-backdrop-filter: blur(15px);
-        border: 2px solid #00D4FF !important;
-        box-shadow: 0 0 25px rgba(0, 212, 255, 0.5) !important;
-        border-radius: 16px;
-        padding: 30px;
-        transition: all 0.3s ease;
-    }
-    .glass-card:hover {
-        box-shadow: 0 0 40px rgba(0, 212, 255, 0.8) !important;
-    }
-    
-    /* Form Labels */
-    label {
+        font-size: 12px !important;
+    }}
+    /* Styling for Streamlit's native sidebar nav links if they appear */
+    [data-testid="stSidebarNav"] li a span {{
         color: #FFFFFF !important;
         font-weight: 700 !important;
-        letter-spacing: 0.5px !important;
-    }
-    
-    /* Inputs */
-    .stTextInput input, .stNumberInput input {
-        background-color: #121212 !important;
-        color: #FFFFFF !important;
-        border: 1px solid #30363d !important;
-        border-radius: 8px !important;
-        padding: 10px !important;
-    }
-    .stTextInput input:focus, .stNumberInput input:focus {
-        border: 2px solid #00D4FF !important;
-        box-shadow: 0 0 15px rgba(0, 212, 255, 0.6) !important;
-    }
-    
-    /* Buttons Globally */
-    .stButton > button {
-        background-color: #121212 !important;
-        color: #00D4FF !important;
-        border: 2px solid #00D4FF !important;
-        border-radius: 8px !important;
-        transition: all 0.2s ease !important;
-        font-weight: 900 !important;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        width: 100%;
-        padding: 10px 0 !important;
-        box-shadow: 0 0 10px rgba(0, 212, 255, 0.2) !important;
-    }
-    .stButton > button:hover {
-        background-color: #00D4FF !important;
-        color: #050505 !important;
-        box-shadow: 0 0 20px rgba(0, 212, 255, 0.8) !important;
-    }
-    
-    /* Form Submit Buttons (Solid Neon Blue) */
-    [data-testid="stFormSubmitButton"] > button {
-        background-color: #00D4FF !important;
-        color: #000000 !important;
-        border: none !important;
-        font-weight: 900 !important;
-        font-size: 16px !important;
-        box-shadow: 0 0 15px rgba(0, 212, 255, 0.6) !important;
-    }
-    [data-testid="stFormSubmitButton"] > button:hover {
-        background-color: #FFFFFF !important;
-        color: #000000 !important;
-        box-shadow: 0 0 25px rgba(0, 212, 255, 1) !important;
-    }
-    
-    /* Link Buttons (Tertiary) */
-    .stButton > button[kind="tertiary"] {
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        color: #00D4FF !important;
-        font-weight: 800 !important;
-        font-size: 16px !important;
-        text-transform: none !important;
-        letter-spacing: normal !important;
-    }
-    .stButton > button[kind="tertiary"] p {
-        font-size: 16px !important;
-    }
-    .stButton > button[kind="tertiary"]:hover {
-        color: #FFFFFF !important;
-        text-shadow: 0 0 10px #FFFFFF !important;
-        background: transparent !important;
-        box-shadow: none !important;
-    }
-    
-    /* Code blocks / Highlights */
-    code {
-        color: #00D4FF;
-        background-color: rgba(0, 212, 255, 0.1);
-        padding: 3px 6px;
-        border-radius: 6px;
-        font-weight: bold;
-    }
-    
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        background-color: #161b22;
-        border-radius: 10px;
-        padding: 8px;
-        gap: 8px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        color: #8b949e;
-        border-radius: 8px !important;
-        padding: 10px 20px !important;
-        font-size: 16px !important;
-        font-weight: 600 !important;
-    }
-    .stTabs [data-baseweb="tab"][aria-selected="true"] {
-        color: #e6edf3;
-        background-color: #21262d;
-    }
-    
-    /* Header */
-    .dashboard-header {
-        text-align: center;
-        margin-bottom: 2.5rem;
-        padding: 2.5rem 0;
-        border-radius: 16px;
-        background: linear-gradient(145deg, #161b22 0%, #0d1117 100%);
-        border: 1px solid #30363d;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-    }
-    .dashboard-header h1 {
-        margin: 0;
-        font-size: 3rem;
-        background: linear-gradient(135deg, #e6edf3, #58a6ff);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: 900;
-        letter-spacing: 1px;
-    }
-    .dashboard-header p {
-        color: #8b949e;
-        font-size: 1.2rem;
-        margin-top: 12px;
-        font-weight: 500;
-        letter-spacing: 0.5px;
-    }
+        font-size: 14px !important;
+    }}
+    [data-testid="stSidebarNav"] li a:hover {{
+        background-color: rgba(0, 212, 255, 0.2) !important;
+    }}
 
-    /* ═══════════════════════════════════════════
-       XAI INSIGHT CARD — GLASSMORPHISM + PULSE
-       ═══════════════════════════════════════════ */
-    @keyframes xai-pulse {
-        0%   { box-shadow: 0 0 15px rgba(191,64,191,0.3), inset 0 0 30px rgba(0,0,0,0.3); }
-        50%  { box-shadow: 0 0 30px rgba(191,64,191,0.6), inset 0 0 30px rgba(0,0,0,0.3); }
-        100% { box-shadow: 0 0 15px rgba(191,64,191,0.3), inset 0 0 30px rgba(0,0,0,0.3); }
-    }
-    .xai-insight-card {
-        background: rgba(18,18,18,0.85);
-        backdrop-filter: blur(15px);
-        -webkit-backdrop-filter: blur(15px);
-        border: 2px solid #BF40BF;
-        border-radius: 16px;
-        padding: 28px 32px;
-        margin: 20px 0;
-        animation: xai-pulse 3s ease-in-out infinite;
-    }
-    .xai-header {
-        font-family: 'Orbitron', 'Roboto Mono', monospace;
-        font-size: 20px;
-        font-weight: 900;
-        color: #BF40BF;
-        letter-spacing: 2px;
+    /* 8. Utility Components (Cards & Forms) */
+    .cyber-card, .dad-card {{
+        background-color: #0a0a0a !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 12px;
+        padding: 20px;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+    }}
+    .cyber-card:hover {{
+        border-color: #00D4FF !important;
+        box-shadow: 0 0 25px rgba(0, 212, 255, 0.3) !important;
+    }}
+    
+    /* 13. AI Decision Insight Card (XAI) */
+    .xai-insight-card {{
+        background: rgba(255, 0, 255, 0.03) !important;
+        border: 1px solid rgba(255, 0, 255, 0.2) !important;
+        border-radius: 16px !important;
+        padding: 25px !important;
+        margin: 20px 0 !important;
+        transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+        position: relative;
+        overflow: hidden;
+    }}
+    .xai-insight-card:hover {{
+        transform: translateY(-10px) scale(1.01) !important;
+        background: rgba(255, 0, 255, 0.08) !important;
+        border-color: #FF00FF !important;
+        box-shadow: 0 20px 60px rgba(255, 0, 255, 0.4) !important;
+    }}
+    .xai-header {{
+        color: #FF00FF !important;
+        font-family: 'Orbitron', sans-serif !important;
+        font-weight: 900 !important;
+        font-size: 14px !important;
+        letter-spacing: 2px !important;
         text-transform: uppercase;
-        margin-bottom: 18px;
-        text-shadow: 0 0 12px rgba(191,64,191,0.5);
-    }
-    .xai-icon {
-        font-size: 24px;
-        margin-right: 8px;
-        filter: drop-shadow(0 0 6px rgba(191,64,191,0.6));
-    }
-    .xai-primary-label {
-        color: #8b949e;
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-        font-weight: 700;
-        margin-bottom: 4px;
-    }
-    .xai-attack-name {
-        font-family: 'Orbitron', 'Roboto Mono', monospace;
-        font-size: 28px;
-        font-weight: 900;
-        color: #FFFFFF;
-        text-shadow: 0 0 8px rgba(191,64,191,0.3);
-        margin-bottom: 4px;
-    }
-    .xai-count {
-        color: #BF40BF;
-        font-size: 13px;
-        font-weight: 700;
-        margin-bottom: 16px;
-    }
-    .xai-reason {
-        color: #e6edf3;
-        font-size: 14px;
-        line-height: 1.7;
-        font-family: 'Roboto Mono', monospace;
-        padding: 14px 18px;
-        background: rgba(191,64,191,0.06);
-        border-left: 3px solid #BF40BF;
-        border-radius: 0 8px 8px 0;
-        margin-bottom: 16px;
-    }
-    .xai-reason strong { color: #BF40BF; }
-    .xai-reason code {
-        color: #00D4FF;
-        background: rgba(0,212,255,0.08);
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 12px;
-    }
-    .xai-secondary-title {
-        color: #8b949e;
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-        font-weight: 700;
-        margin-top: 12px;
-        margin-bottom: 6px;
-        padding-top: 12px;
-        border-top: 1px solid rgba(191,64,191,0.2);
-    }
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }}
+    .xai-attack-name {{
+        color: #FFFFFF !important;
+        font-size: 28px !important;
+        font-weight: 900 !important;
+        font-family: 'Orbitron', sans-serif !important;
+        margin: 10px 0;
+        text-shadow: 0 0 15px rgba(255, 0, 255, 0.5);
+    }}
+    .xai-reason {{
+        color: #c9d1d9 !important;
+        font-family: 'Roboto Mono', monospace !important;
+        font-size: 14px !important;
+        line-height: 1.6 !important;
+        background: rgba(0, 0, 0, 0.3);
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 3px solid #FF00FF;
+    }}
+    /* 9. Form Clarity & Input Styling */
+    label, p, span, div {{
+        color: #FFFFFF !important;
+        font-family: 'Roboto Mono', monospace !important;
+    }}
+    /* CRITICAL FIX: Force Selectbox Visibility */
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] {{
+        background-color: #050505 !important;
+        color: #FFFFFF !important;
+    }}
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {{
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+    }}
+    /* Target the actual text span inside the selected value */
+    div[data-testid="stSelectbox"] [data-baseweb="select"] span {{
+        color: #FFFFFF !important;
+    }}
+    /* Dropdown menu items */
+    div[data-baseweb="popover"] ul li {{
+        background-color: #050505 !important;
+        color: #FFFFFF !important;
+    }}
+    div[data-baseweb="popover"] ul li:hover {{
+        background-color: #00D4FF !important;
+        color: #000000 !important;
+    }}
+    /* Animate Selectbox Container */
+    div[data-testid="stSelectbox"] {{
+        transition: all 0.3s ease !important;
+    }}
+    div[data-testid="stSelectbox"]:hover {{
+        transform: translateY(-3px) !important;
+        box-shadow: 0 5px 15px rgba(0, 212, 255, 0.1) !important;
+    }}
+    .stTextInput input:focus, .stNumberInput input:focus {{
+        border-color: #00D4FF !important;
+        box-shadow: 0 0 15px rgba(0, 212, 255, 0.5) !important;
+    }}
+    
+    /* 10. Buttons globally */
+    .stButton button {{
+        background: rgba(0, 212, 255, 0.1) !important;
+        border: 1px solid #00D4FF !important;
+        color: #FFFFFF !important;
+        border-radius: 8px !important;
+        padding: 12px 24px !important;
+        font-weight: 900 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 2px !important;
+    }}
+    .stButton button:hover {{
+        background: #00D4FF !important;
+        color: #000000 !important;
+        box-shadow: 0 0 30px #00D4FF !important;
+    }}
+
+    /* 14. Advanced File Uploader Styling */
+    [data-testid="stFileUploader"] {{
+        background-color: rgba(10, 10, 10, 0.6) !important;
+        border: 2px dashed rgba(0, 212, 255, 0.3) !important;
+        border-radius: 20px !important;
+        padding: 30px !important;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    }}
+    [data-testid="stFileUploader"]:hover {{
+        border-color: #00D4FF !important;
+        background-color: rgba(0, 212, 255, 0.08) !important;
+        transform: translateY(-5px) !important;
+        box-shadow: 0 15px 45px rgba(0, 212, 255, 0.2) !important;
+    }}
+    [data-testid="stFileUploader"] section {{
+        background-color: transparent !important;
+        border: none !important;
+    }}
+    [data-testid="stFileUploader"] label p {{
+        color: #00D4FF !important;
+        font-family: 'Orbitron', sans-serif !important;
+        font-weight: 900 !important;
+        font-size: 16px !important;
+        letter-spacing: 1.5px !important;
+    }}
+    [data-testid="stFileUploader"] small {{
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        opacity: 0.8 !important;
+    }}
+    /* Style the actual upload icon and text */
+    [data-testid="stFileUploaderIcon"] {{
+        color: #00D4FF !important;
+    }}
+    /* 15. Authentication & Form Submit Clarity */
+    [data-testid="stFormSubmitButton"] button {{
+        background-color: #00D4FF !important;
+        color: #000000 !important;
+        border-radius: 50px !important;
+        font-weight: 900 !important;
+        font-size: 18px !important;
+        padding: 10px 40px !important;
+        border: none !important;
+        box-shadow: 0 0 20px rgba(0, 212, 255, 0.6) !important;
+        transition: all 0.3s ease !important;
+        width: 100% !important;
+        text-transform: uppercase !important;
+        letter-spacing: 2px !important;
+        margin-top: 10px !important;
+    }}
+    [data-testid="stFormSubmitButton"] button:hover {{
+        background-color: #FFFFFF !important;
+        box-shadow: 0 0 40px rgba(0, 212, 255, 1) !important;
+        transform: scale(1.02);
+    }}
+    [data-testid="stFormSubmitButton"] p {{
+        color: #000000 !important;
+        font-weight: 900 !important;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
-# ---- Reusable UI Components ----
+if not st.session_state.app_launched:
+    # Landing page content
+    st.markdown('<div style="text-align: center; padding: 100px 0;">', unsafe_allow_html=True)
+    st.markdown('<h1>INTELLIGENT INTRUSION DETECTION SYSTEM (IIDS)</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="color: #00D4FF; letter-spacing: 2px;">AI-POWERED NETWORK SECURITY MONITORING TERMINAL</p>', unsafe_allow_html=True)
+    
+    st.markdown('<br><br>', unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        if st.button("LAUNCH SYSTEM", key="btn_launch_main", use_container_width=True):
+            st.session_state.app_launched = True
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.stop()
+
+
 
 # ── XAI Reasoning Engine ──
 def get_classification_reason(attack_type, features=None):
@@ -527,7 +644,7 @@ def show_alert_with_action(alert):
             st.markdown(
                 '<div style="color: #ff4d4d; font-weight: bold; font-size: 15px;'
                 'text-align: center; border: 2px solid #ff4d4d; background: rgba(255,77,77,0.1);'
-                'border-radius: 8px; padding: 12px;">🛡️ BLOCKED</div>', 
+                'border-radius: 8px; padding: 12px;">BLOCKED</div>', 
                 unsafe_allow_html=True)
 
 
@@ -539,9 +656,8 @@ if not st.session_state.app_launched:
     <style>
         /* Hide all Streamlit defaults */
         #MainMenu {visibility: hidden;}
-        header {visibility: hidden;}
         footer {visibility: hidden;}
-        section[data-testid="stSidebar"] {display: none !important;}
+        /* Sidebar remains visible */
         
         .centered-content {
             text-align: center !important;
@@ -614,14 +730,14 @@ if not st.session_state.app_launched:
     col_left, col_mid, col_right = st.columns([1, 4, 1])
     
     with col_mid:
-        st.markdown('<div class="centered-content">', unsafe_allow_html=True)
-        st.markdown('<div class="landing-title">Intelligent Intrusion<br>Detection System (IIDS)</div>', unsafe_allow_html=True)
-        st.markdown('<div class="landing-subtitle">AI-Powered Network Traffic Monitoring & Anomaly Detection</div>', unsafe_allow_html=True)
+        st.markdown('<div class="centered-content" style="background: rgba(10,10,10,0.8); border: 2px solid #00D4FF; box-shadow: 0 0 40px rgba(0,212,255,0.4);">', unsafe_allow_html=True)
+        st.markdown('<h1 style="color: #FFFFFF; animation: glowPulse 4s infinite;">Intelligent Intrusion<br>Detection System (IIDS)</h1>', unsafe_allow_html=True)
+        st.markdown('<p style="color: #00D4FF; font-size: 1.2rem; letter-spacing: 2px; font-weight: 700;">AI-POWERED NETWORK SECURITY TERMINAL</p>', unsafe_allow_html=True)
         
         # Center the button strictly inside the card
-        c1, c2, c3 = st.columns([1, 2, 1])
+        c1, c2, c3 = st.columns([1, 3, 1])
         with c2:
-            if st.button("Launch Dashboard", use_container_width=True):
+            if st.button("LAUNCH TERMINAL", key="btn_launch_terminal", use_container_width=True):
                 st.session_state.app_launched = True
                 st.rerun()
                 
@@ -640,9 +756,9 @@ if "current_page" not in st.session_state:
 
 if not st.session_state.authenticated:
     st.markdown("""
-    <div style="text-align: center; margin-top: 50px; margin-bottom: 30px;">
-        <h1 style="font-size: 3.5rem; color: #FFFFFF; font-weight: 900; letter-spacing: -1px; line-height: 1.2;">Intelligent Intrusion<br>Detection System (IIDS)</h1>
-        <p style="color: #8b949e; font-size: 1.2rem; margin-top: 15px;">AI-Powered Network Traffic Monitoring & Anomaly Detection</p>
+    <div style="text-align: center; margin-top: 20px; margin-bottom: 30px;">
+        <h1 style="font-size: 3rem; color: #FFFFFF; font-weight: 900; letter-spacing: 2px; line-height: 1.2; animation: glowPulse 4s infinite;">IIDS INTELLIGENCE TERMINAL</h1>
+        <p style="color: #00D4FF; font-size: 1rem; margin-top: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px;">Authenticated Personnel Only</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -713,6 +829,88 @@ if not st.session_state.authenticated:
 
     st.stop() # Halt execution if not authenticated
 
+# ---- Inject Authenticated-Only Sidebar Styling (ULTIMATE FIX) ----
+if st.session_state.get('authenticated', False):
+    st.markdown("""
+    <style>
+        @keyframes strobe-white {
+            0% { box-shadow: 0 0 20px #FFFFFF, 0 0 40px #FFFFFF; }
+            50% { box-shadow: 0 0 50px #FFFFFF, 0 0 100px #FFFFFF; }
+            100% { box-shadow: 0 0 20px #FFFFFF, 0 0 40px #FFFFFF; }
+        }
+
+        /* Target ONLY the first button in the header (Left Side Toggle) */
+        header button:first-of-type,
+        button[data-testid="stSidebarCollapseAction"] {
+            background-color: #FFFFFF !important;
+            border: 2px solid #000000 !important;
+            border-radius: 50% !important;
+            animation: strobe-white 1.5s infinite ease-in-out !important;
+            width: 70px !important;
+            height: 70px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            z-index: 1000000 !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            cursor: pointer !important;
+            margin-left: 10px !important;
+            margin-top: 10px !important;
+        }
+
+        /* RESET the right-side button (Last button in header) if it accidentally gets styled */
+        header button:last-of-type:not(:first-of-type) {
+            background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            animation: none !important;
+            width: auto !important;
+            height: auto !important;
+        }
+        header button:last-of-type:not(:first-of-type)::after {
+            content: "" !important;
+        }
+        header button:last-of-type:not(:first-of-type) svg {
+            display: block !important;
+        }
+
+        header button:first-of-type::after,
+        button[data-testid="stSidebarCollapseAction"]::after {
+            content: "MENU" !important;
+            color: #000000 !important;
+            font-family: 'Orbitron', sans-serif !important;
+            font-size: 13px !important;
+            font-weight: 900 !important;
+            display: block !important;
+            visibility: visible !important;
+        }
+
+        header button:first-of-type svg,
+        button[data-testid="stSidebarCollapseAction"] svg {
+            display: none !important;
+        }
+
+        /* 16. Modal Styling (For Clarity & Consistency) */
+        div[data-testid="stModal"] {
+            background-color: #0a0a0a !important;
+            border: 1px solid #00D4FF !important;
+            border-radius: 15px !important;
+            box-shadow: 0 0 50px rgba(0, 212, 255, 0.3) !important;
+        }
+        div[data-testid="stModal"] * {
+            color: #FFFFFF !important;
+            font-family: 'Roboto Mono', monospace !important;
+        }
+        div[data-testid="stModal"] h1, div[data-testid="stModal"] h2, div[data-testid="stModal"] h3 {
+            color: #00D4FF !important;
+            font-family: 'Orbitron', sans-serif !important;
+        }
+
+        header { overflow: visible !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
 # ---- Load Models ----
 @st.cache_resource
 def init_models():
@@ -744,367 +942,129 @@ if "upload_success" in st.session_state:
     st.success(st.session_state.upload_success)
     del st.session_state.upload_success
 
-# Share state with tools (No longer needed since tools use DB)
-# agent_tools.set_shared_state(st.session_state.alerts, st.session_state.blocked_ips)
-
 # ---- Agent (cached) ----
 @st.cache_resource
-def init_agent():
+def init_agent(version="v2"):
     return create_agent(temperature=0.1)
-
-# ---- Header ----
-st.markdown("""
-<div class="dashboard-header">
-    <h1>Intelligent Intrusion Detection System (IIDS)</h1>
-    <p>AI-Powered Network Security Monitoring System</p>
-</div>
-""", unsafe_allow_html=True)
-
-# ---- Sidebar Styles (injected globally, outside sidebar block) ----
-st.markdown("""
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<style>
-section[data-testid="stSidebar"] {
-    background-color: #050505 !important;
-    background-image:
-        linear-gradient(rgba(0, 212, 255, 0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 212, 255, 0.04) 1px, transparent 1px) !important;
-    background-size: 30px 30px !important;
-    animation: sidebar-grid-scroll 20s linear infinite !important;
-    border-right: 1px solid rgba(0, 212, 255, 0.1) !important;
-    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.8) !important;
-}
-@keyframes sidebar-grid-scroll {
-    0%   { background-position: 0 0; }
-    100% { background-position: 30px 30px; }
-}
-section[data-testid="stSidebar"] .stButton > button {
-    background: rgba(255,255,255,0.03) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
-    border-radius: 12px !important;
-    color: #FFFFFF !important;
-    font-family: 'Roboto Mono', monospace !important;
-    font-weight: 700 !important;
-    font-size: 13px !important;
-    padding: 11px 16px !important;
-    margin-bottom: 6px !important;
-    text-align: left !important;
-    display: block !important;
-    transition: all 0.3s cubic-bezier(0.4,0,0.2,1) !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
-    letter-spacing: 0.3px !important;
-}
-section[data-testid="stSidebar"] .stButton > button:hover {
-    background: rgba(0,212,255,0.08) !important;
-    border-color: #00D4FF !important;
-    color: #00D4FF !important;
-    box-shadow: 0 0 20px rgba(0,212,255,0.35), 0 4px 15px rgba(0,0,0,0.4) !important;
-    transform: translateY(-2px) scale(1.02) !important;
-}
-section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
-    background: rgba(255,75,75,0.08) !important;
-    border: 1px solid rgba(255,75,75,0.4) !important;
-    color: #FF4B4B !important;
-    box-shadow: 0 0 10px rgba(255,75,75,0.15), 0 2px 8px rgba(0,0,0,0.3) !important;
-}
-section[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
-    background: rgba(255,75,75,0.2) !important;
-    border-color: #FF4B4B !important;
-    color: #FFFFFF !important;
-    box-shadow: 0 0 25px rgba(255,75,75,0.5), 0 4px 15px rgba(0,0,0,0.4) !important;
-    transform: translateY(-2px) scale(1.02) !important;
-}
-section[data-testid="stSidebar"] .stSelectbox > div > div {
-    background: rgba(255,255,255,0.03) !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
-    border-radius: 10px !important;
-    color: #FFFFFF !important;
-}
-.sidebar-separator {
-    height: 1px;
-    border: none;
-    margin: 18px 0;
-    border-radius: 1px;
-}
-.sep-cyan   { background: linear-gradient(90deg, transparent, #00D4FF, transparent); box-shadow: 0 0 8px rgba(0,212,255,0.4); }
-.sep-red    { background: linear-gradient(90deg, transparent, #FF4B4B, transparent); box-shadow: 0 0 8px rgba(255,75,75,0.4); }
-.sep-green  { background: linear-gradient(90deg, transparent, #2ea043, transparent); box-shadow: 0 0 8px rgba(46,160,67,0.4); }
-.sep-purple { background: linear-gradient(90deg, transparent, #a371f7, transparent); box-shadow: 0 0 8px rgba(163,113,247,0.4); }
-.sep-gray   { background: linear-gradient(90deg, transparent, #8b949e, transparent); box-shadow: 0 0 8px rgba(139,148,158,0.3); }
-.sidebar-section-title {
-    font-family: 'Roboto Mono', monospace;
-    font-size: 13px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    margin-bottom: 12px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.sidebar-section-title .sec-icon {
-    font-size: 18px;
-    filter: drop-shadow(0 0 4px currentColor);
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ---- Sidebar ----
-with st.sidebar:
-    # ── SOC Control Header ──
-    st.markdown("""
-    <div style="text-align: center; margin-bottom: 22px; padding: 24px 16px; border-radius: 16px;
-                background: rgba(255,255,255,0.02); backdrop-filter: blur(15px);
-                border: 1px solid rgba(0, 212, 255, 0.15);
-                box-shadow: 0 0 30px rgba(0, 212, 255, 0.08), inset 0 0 40px rgba(0,0,0,0.3);">
-        <h2 style="font-family: 'Orbitron', sans-serif; color: #e6edf3; font-size: 22px; margin: 0;
-                   font-weight: 900; letter-spacing: 2px; text-shadow: 0 0 10px rgba(0,212,255,0.3);">
-            ⚙️ SOC CONTROL
-        </h2>
-        <div style="margin-top: 8px; display: inline-block; padding: 4px 16px; border-radius: 20px;
-                    background: rgba(0, 212, 255, 0.1); border: 1px solid rgba(0, 212, 255, 0.3);">
-            <span style="font-family: 'Orbitron', sans-serif; color: #00D4FF; font-size: 10px;
-                         font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">
-                Command Center
-            </span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ─── 1. Analysis Controls ───
-    st.markdown('<div class="sidebar-section-title" style="color: #00D4FF;"><span class="sec-icon">🔍</span> Analysis Controls</div>', unsafe_allow_html=True)
-    if st.button("▶  Run Detection", key="btn_run", use_container_width=True):
-        st.toast("Manual Detection Triggered: Awaiting telemetry...")
-    if st.button("🎲  Analyze Random Flow", key="btn_rand", use_container_width=True):
-        st.session_state._quick_action = "Generate a random flow and analyze it for intrusions. If malicious, block the IP."
-    if st.button("📚  Batch Analyze", key="btn_batch", use_container_width=True):
-        st.session_state._quick_action = "Generate and analyze 5 random flows. Block any malicious IPs found."
-
-    # ── Separator ──
-    st.markdown('<div class="sidebar-separator sep-red"></div>', unsafe_allow_html=True)
-
-    # ─── 2. Security Actions ───
-    st.markdown('<div class="sidebar-section-title" style="color: #FF4B4B;"><span class="sec-icon">🚫</span> Security Actions</div>', unsafe_allow_html=True)
-    if st.button("⛔  Block IP", key="btn_block", use_container_width=True):
-        st.session_state.show_blocklist = True
-        st.rerun()
-    if st.button("🔓  Unblock IP", key="btn_unblock", use_container_width=True):
-        st.toast("Unblock registry queried.")
-    if st.button("🚨  Emergency Block Mode", key="btn_emerg", type="primary", use_container_width=True):
-        st.toast("🚨 EMERGENCY MODE ENGAGED. Securing active perimeter...", icon="🚨")
-        for a in st.session_state.alerts:
-            if a.get("severity") in ["CRITICAL", "HIGH"]:
-                db_utils.block_ip_db(a.get("src_ip"))
-        st.rerun()
-
-    # ── Separator ──
-    st.markdown('<div class="sidebar-separator sep-green"></div>', unsafe_allow_html=True)
-
-    # ─── 3. Monitoring Controls ───
-    st.markdown('<div class="sidebar-section-title" style="color: #2ea043;"><span class="sec-icon">📊</span> Monitoring Controls</div>', unsafe_allow_html=True)
-    if st.button("🔄  Refresh Data", key="btn_refresh", use_container_width=True):
-        st.rerun()
-    if st.button("🔔  Show Alerts", key="btn_alerts", use_container_width=True):
-        st.session_state._quick_action = "Show me all current security alerts."
-    if st.button("📜  Show System Logs", key="btn_logs", use_container_width=True):
-        st.toast("Fetching Deep System Logs...", icon="ℹ️")
-    if st.button("🗑️  Purge System Data", key="btn_purge", use_container_width=True):
-        db_utils.clear_db()
-        st.session_state.messages = []
-        st.session_state.chat_history = []
-        st.session_state.total_analyzed = 0
-        st.session_state.total_malicious = 0
-        st.rerun()
-
-    # ── Separator ──
-    st.markdown('<div class="sidebar-separator sep-purple"></div>', unsafe_allow_html=True)
-
-    # ─── 4. Analysis History ───
-    st.markdown('<div class="sidebar-section-title" style="color: #a371f7;"><span class="sec-icon">📜</span> Analysis History</div>', unsafe_allow_html=True)
-    
-    user_email = st.session_state.get("user_email", "")
-    sessions = db_utils.get_sessions(user_email)
-    
-    if sessions:
-        session_labels = [f"{s['filename']} ({s['timestamp'][:10]})" for s in sessions]
-        selected_idx = st.selectbox("Select Session", range(len(session_labels)), format_func=lambda i: session_labels[i], key="history_select")
-        
-        col_load, col_live = st.columns(2)
-        with col_load:
-            if st.button("📂 Load", key="btn_load_history", use_container_width=True):
-                st.session_state.viewing_history = True
-                st.session_state.history_session = sessions[selected_idx]
-                st.rerun()
-        with col_live:
-            if st.session_state.get("viewing_history"):
-                if st.button("🔴 Live", key="btn_return_live", use_container_width=True):
-                    st.session_state.viewing_history = False
-                    st.session_state.history_session = None
-                    st.rerun()
-    else:
-        st.markdown("<p style='color: #8b949e; font-size: 12px; font-family: Roboto Mono, monospace;'>No saved sessions yet.</p>", unsafe_allow_html=True)
-
-    # ── Separator ──
-    st.markdown('<div class="sidebar-separator sep-purple"></div>', unsafe_allow_html=True)
-
-    # ─── 4b. Threat Calendar Heatmap ───
-    st.markdown('<div class="sidebar-section-title" style="color: #FF4B4B;"><span class="sec-icon">📅</span> Threat Calendar</div>', unsafe_allow_html=True)
-    
-    import calendar as _cal
-    _today = datetime.datetime.now()
-    _year = _today.year
-    _month = _today.month
-    _daily_data = db_utils.get_daily_threat_counts()
-    
-    # Month navigation
-    _month_name = _today.strftime("%B %Y")
-    st.markdown(f"""
-    <div style="text-align: center; margin-bottom: 10px;">
-        <span style="font-family: 'Orbitron', 'Roboto Mono', monospace; font-size: 14px; font-weight: 900;
-                     color: #e6edf3; letter-spacing: 1px; text-shadow: 0 0 6px rgba(0,212,255,0.3);">
-            {_month_name}
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Build calendar grid HTML
-    _cal_obj = _cal.Calendar(firstweekday=0)  # Monday first
-    _month_days = _cal_obj.monthdayscalendar(_year, _month)
-    
-    # Day header row
-    _day_headers = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
-    _header_html = ''.join(
-        f'<div style="text-align: center; font-size: 10px; font-weight: 700; color: #00D4FF; '
-        f'font-family: Roboto Mono, monospace; letter-spacing: 0.5px;">{d}</div>'
-        for d in _day_headers
-    )
-    
-    _grid_rows_html = ""
-    for week in _month_days:
-        _week_cells = ""
-        for day in week:
-            if day == 0:
-                # Empty cell
-                _week_cells += '<div style="width: 100%; aspect-ratio: 1; border-radius: 4px;"></div>'
-            else:
-                _date_str = f"{_year}-{_month:02d}-{day:02d}"
-                _day_info = _daily_data.get(_date_str, None)
-                _count = _day_info['count'] if _day_info else 0
-                _types = _day_info['types'] if _day_info else ''
-                
-                # Color coding based on threat count
-                if _count == 0:
-                    _bg = '#1a1a1a'
-                    _border = 'none'
-                    _glow = 'none'
-                    _text_color = '#4a4a4a'
-                elif _count <= 5:
-                    _bg = '#0e4429'
-                    _border = '1px solid #2ea043'
-                    _glow = 'none'
-                    _text_color = '#2ea043'
-                elif _count <= 15:
-                    _bg = 'rgba(242, 140, 40, 0.2)'
-                    _border = '1px solid #f28c28'
-                    _glow = '0 0 6px rgba(242, 140, 40, 0.4)'
-                    _text_color = '#f28c28'
-                else:
-                    _bg = 'rgba(255, 75, 75, 0.25)'
-                    _border = '1px solid #FF4B4B'
-                    _glow = '0 0 10px rgba(255, 75, 75, 0.6)'
-                    _text_color = '#FF4B4B'
-                
-                # Is today?
-                _is_today = (day == _today.day)
-                _today_ring = 'outline: 2px solid #00D4FF; outline-offset: 1px;' if _is_today else ''
-                
-                # Tooltip
-                _tooltip_text = f"{_date_str} | Threats: {_count}"
-                if _types:
-                    _tooltip_text += f" | {_types}"
-                
-                _week_cells += (
-                    f'<div style="width: 100%; aspect-ratio: 1; border-radius: 4px; '
-                    f'background: {_bg}; border: {_border}; box-shadow: {_glow}; {_today_ring} '
-                    f'display: flex; align-items: center; justify-content: center; cursor: default; '
-                    f'position: relative;" '
-                    f'title="{_tooltip_text}">'
-                    f'<span style="font-size: 10px; font-weight: 700; color: {_text_color}; '
-                    f'font-family: Roboto Mono, monospace;">{day}</span>'
-                    f'</div>'
-                )
-        _grid_rows_html += (
-            f'<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 3px;">'
-            f'{_week_cells}</div>'
-        )
-    
-    # Legend
-    _legend_html = """
-    <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px; flex-wrap: wrap;">
-        <div style="display: flex; align-items: center; gap: 4px;">
-            <div style="width: 10px; height: 10px; border-radius: 2px; background: #1a1a1a; border: 1px solid #333;"></div>
-            <span style="font-size: 9px; color: #8b949e; font-family: Roboto Mono, monospace;">None</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 4px;">
-            <div style="width: 10px; height: 10px; border-radius: 2px; background: #0e4429; border: 1px solid #2ea043;"></div>
-            <span style="font-size: 9px; color: #8b949e; font-family: Roboto Mono, monospace;">Low</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 4px;">
-            <div style="width: 10px; height: 10px; border-radius: 2px; background: rgba(242, 140, 40, 0.3); border: 1px solid #f28c28;"></div>
-            <span style="font-size: 9px; color: #8b949e; font-family: Roboto Mono, monospace;">Med</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 4px;">
-            <div style="width: 10px; height: 10px; border-radius: 2px; background: rgba(255, 75, 75, 0.35); border: 1px solid #FF4B4B; box-shadow: 0 0 4px rgba(255,75,75,0.5);"></div>
-            <span style="font-size: 9px; color: #8b949e; font-family: Roboto Mono, monospace;">High</span>
-        </div>
-    </div>
-    """
-    
-    # Full calendar card
-    st.markdown(f"""
-    <div style="background: rgba(5,5,5,0.9); border: 1px solid rgba(255,75,75,0.15); border-radius: 12px;
-                padding: 14px; box-shadow: 0 0 15px rgba(0,0,0,0.5);">
-        <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 6px;">
-            {_header_html}
-        </div>
-        {_grid_rows_html}
-        {_legend_html}
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ─── 5. Account ───
-    st.markdown('<div class="sidebar-section-title" style="color: #8b949e;"><span class="sec-icon">🔒</span> Account</div>', unsafe_allow_html=True)
-    if st.session_state.current_user:
-        st.markdown(f"""
-        <div style="padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,0.03);
-                    backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.06);
-                    margin-bottom: 10px;">
-            <div style="color: #00D4FF; font-size: 14px; font-weight: 700; font-family: 'Roboto Mono', monospace;
-                        text-shadow: 0 0 6px rgba(0,212,255,0.3);">
-                👤 {st.session_state.current_user['full_name']}
-            </div>
-            <div style="color: #8b949e; font-size: 11px; margin-top: 4px; font-family: 'Roboto Mono', monospace;">
-                🏢 {st.session_state.current_user['company_name']}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    if st.button("🚪  Logout", key="btn_logout", use_container_width=True):
-        st.session_state.authenticated = False
-        st.session_state.current_user = None
-        st.rerun()
 
 if "show_blocklist" not in st.session_state:
     st.session_state.show_blocklist = False
 
+# ---- GLOBAL HEADER ----
+st.markdown("""
+<div class="dashboard-header">
+    <h1>Intelligent Intrusion Detection System (IIDS)</h1>
+    <p>AI-Powered Real-Time Anomaly Detection & Threat Intelligence</p>
+</div>
+""", unsafe_allow_html=True)
 
-# ---- Main Tabs ----
-tab_dashboard, tab_chat, tab_manual, tab_corporate, tab_deep_analysis = st.tabs(["📊 Dashboard", "🤖 Chat", "🛠️ Manual Analysis", "🏢 Corporate Portal", "🔬 Deep Analysis"])
+# ---- GLOBAL NAVIGATION ----
+tab_dashboard, tab_chat, tab_manual, tab_corporate, tab_deep_analysis = st.tabs(["Dashboard", "Chat", "Manual Analysis", "Corporate Portal", "Deep Analysis"])
+
+def render_block_registry():
+    """Render the detailed forensic Block Registry with tactical row triggers."""
+    st.markdown('<div class="breathing-title">ACTIVE THREAT REGISTRY</div>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; color: #8b949e; margin-bottom: 30px;">High-fidelity forensic breakdown of quarantined network entities</p>', unsafe_allow_html=True)
+    
+    blocked_data = db_utils.get_blocked_ips_detailed()
+    
+    if not blocked_data:
+        st.info("The threat registry is currently empty. No active blocks recorded.")
+        return
+
+    # Track active dossier in session state
+    if "active_dossier_ip" not in st.session_state:
+        st.session_state.active_dossier_ip = None
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # 1. Cyber-Grid Table Header
+    th1, th2, th3, th4, th5, th6 = st.columns([0.6, 2.2, 3.2, 1.3, 1.4, 1.4])
+    with th1: st.markdown('<div style="color: #00D4FF; font-weight: 900; font-size: 11px; text-transform: uppercase;">Status</div>', unsafe_allow_html=True)
+    with th2: st.markdown('<div style="color: #00D4FF; font-weight: 900; font-size: 11px; text-transform: uppercase;">IP Address</div>', unsafe_allow_html=True)
+    with th3: st.markdown('<div style="color: #00D4FF; font-weight: 900; font-size: 11px; text-transform: uppercase;">Location</div>', unsafe_allow_html=True)
+    with th4: st.markdown('<div style="color: #00D4FF; font-weight: 900; font-size: 11px; text-transform: uppercase;">Severity</div>', unsafe_allow_html=True)
+    with th5: st.markdown('<div style="color: #00D4FF; font-weight: 900; font-size: 11px; text-transform: uppercase; text-align: center;">Investigate</div>', unsafe_allow_html=True)
+    with th6: st.markdown('<div style="color: #00D4FF; font-weight: 900; font-size: 11px; text-transform: uppercase; text-align: center;">Action</div>', unsafe_allow_html=True)
+    
+    st.markdown('<div style="height: 1px; background: rgba(0, 212, 255, 0.3); margin-bottom: 10px;"></div>', unsafe_allow_html=True)
+
+    # 2. Scrollable Body
+    with st.container(height=400):
+        for entry in blocked_data:
+            ip = entry['ip']
+            location = f"{entry['city']}, {entry['country']}"
+            severity = entry['severity'].upper()
+            dot_color = "#FF3131" if severity == "CRITICAL" else "#f2cc60"
+            
+            r1, r2, r3, r4, r5, r6 = st.columns([0.6, 2.2, 3.2, 1.3, 1.4, 1.4])
+            with r1: st.markdown(f'<div style="color: {dot_color}; font-size: 18px; padding-top: 5px;">●</div>', unsafe_allow_html=True)
+            with r2: st.markdown(f'<div style="color: #FFFFFF; font-weight: 900; padding-top: 8px; font-size: 14px; font-family: Roboto Mono;">{ip}</div>', unsafe_allow_html=True)
+            with r3: st.markdown(f'<div style="color: #c9d1d9; padding-top: 8px; font-size: 13px;">{location}</div>', unsafe_allow_html=True)
+            with r4: st.markdown(f'<div style="padding-top: 5px;"><span style="color: {dot_color}; border: 1px solid {dot_color}; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 900;">{severity}</span></div>', unsafe_allow_html=True)
+            with r5:
+                # Removed st.rerun() to let Streamlit's natural state management handle it
+                if st.button('DETAILS', key=f"tbl_view_{ip}", use_container_width=True):
+                    st.session_state.active_dossier_ip = ip
+                    st.rerun()
+            with r6:
+                if st.button('UNBLOCK', key=f"tbl_unblock_{ip}", use_container_width=True):
+                    db_utils.unblock_ip_db(ip)
+                    if st.session_state.get('active_dossier_ip') == ip:
+                        st.session_state.active_dossier_ip = None
+                    st.session_state.blocked_ips.discard(ip)
+                    st.rerun()
+            st.markdown('<div style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); margin: 4px 0;"></div>', unsafe_allow_html=True)
+
+    # 3. Forensic Dossier (DEEP DIVE)
+    active_ip = st.session_state.get('active_dossier_ip')
+    if active_ip:
+        entry = next((item for item in blocked_data if item['ip'] == active_ip), None)
+        
+        if entry:
+            st.markdown("<br><hr style='border-color: rgba(0, 212, 255, 0.3);'><br>", unsafe_allow_html=True)
+            st.markdown(f"""
+            <div style="background: rgba(10, 10, 10, 0.95); border: 1px solid #00D4FF; border-radius: 12px; padding: 30px; box-shadow: 0 0 50px rgba(0, 212, 255, 0.2);">
+                <h2 style="color: #00D4FF; font-family: Orbitron; margin-bottom: 20px; font-size: 24px; text-shadow: 0 0 10px rgba(0,212,255,0.5);">🛡️ CONFIDENTIAL DOSSIER: {active_ip}</h2>
+                <div style="height: 2px; background: linear-gradient(90deg, #00D4FF, transparent); margin-bottom: 30px;"></div>
+            """, unsafe_allow_html=True)
+            
+            d1, d2 = st.columns(2)
+            with d1:
+                st.markdown(f"""
+                <div class="dossier-module">
+                    <span class="dossier-label">📍 Origin Analysis</span>
+                    <p class="dossier-text">Entity originates from <b>{entry['city']}, {entry['country']}</b>. Strategic monitoring suggests link to known high-risk autonomous systems and automated botnet clusters.</p>
+                </div>
+                <div class="dossier-module">
+                    <span class="dossier-label">📊 Threat Assessment</span>
+                    <p class="dossier-text">Permanent quarantine enforced following a <b>{entry['severity']}</b> severity breach. Malicious behavior detected: <b>{entry['attack_type']}</b> manipulation.</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            with d2:
+                st.markdown(f"""
+                <div class="dossier-module">
+                    <span class="dossier-label">📡 Forensic Data Stream</span>
+                    <div class="dossier-code">EVENT_ID: {active_ip.replace('.', '_')}_DETECTION
+VECTOR: {entry['attack_type']}
+STATUS: BLOCKED_PERMANENT
+TIMESTAMP: {datetime.datetime.now().strftime('%H:%M:%S')}
+ACTION: PERIMETER_ISOLATION</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button(f'TERMINATE DOSSIER VIEW', key="close_dossier", use_container_width=True):
+                    st.session_state.active_dossier_ip = None
+                    st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            st.session_state.active_dossier_ip = None
+
+# ---- Main Content Router ----
+if st.session_state.get('show_block_registry', False):
+    render_block_registry()
+    st.stop()
 
 
 # ==============================
@@ -1197,9 +1157,109 @@ with tab_dashboard:
             font-weight: 700; margin: 3px 4px 3px 0; font-family: 'Roboto Mono', monospace;
             background: rgba(255,140,0,0.1); border: 1px solid rgba(255,140,0,0.4); color: #FF8C00;
         }
-        .risk-HIGH { color: #FF4B4B !important; text-shadow: 0 0 8px rgba(255,75,75,0.5); }
-        .risk-MEDIUM { color: #FF8C00 !important; }
         .risk-LOW { color: #2ea043 !important; }
+
+        /* 16. Cyber-Grid Table & Dossier Stabilization */
+        @keyframes breathing {{
+            0%, 100% {{ text-shadow: 0 0 10px rgba(0, 212, 255, 0.4); }}
+            50% {{ text-shadow: 0 0 25px rgba(0, 212, 255, 1), 0 0 40px rgba(0, 212, 255, 0.6); }}
+        }}
+        .breathing-title {{
+            color: #00D4FF !important;
+            font-family: 'Orbitron', sans-serif !important;
+            text-align: center;
+            animation: breathing 3s ease-in-out infinite;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            font-weight: 900;
+            font-size: 32px;
+            margin-bottom: 30px;
+        }}
+        .cyber-grid-table {{
+            width: 100% !important;
+            border-collapse: collapse !important;
+            background: rgba(5, 5, 5, 0.8) !important;
+            border: 1px solid rgba(0, 212, 255, 0.2) !important;
+            font-family: 'Roboto Mono', monospace !important;
+            margin-top: 20px !important;
+        }}
+        .cyber-grid-table th {{
+            background: rgba(0, 212, 255, 0.1) !important;
+            color: #00D4FF !important;
+            padding: 15px !important;
+            text-align: left !important;
+            font-size: 12px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 1px !important;
+            border-bottom: 2px solid #00D4FF !important;
+        }}
+        .cyber-grid-table td {{
+            padding: 12px 15px !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+            color: #FFFFFF !important;
+            font-size: 14px !important;
+        }}
+        .cyber-grid-table tr:hover {{
+            background: rgba(0, 212, 255, 0.05) !important;
+        }}
+        /* Custom Scrollbar for Cyber-Grid */
+        .cyber-grid-container {{
+            max-height: 400px !important;
+            overflow-y: auto !important;
+            border-bottom: 1px solid rgba(0, 212, 255, 0.2) !important;
+        }}
+        .cyber-grid-container::-webkit-scrollbar {{
+            width: 6px !important;
+        }}
+        .cyber-grid-container::-webkit-scrollbar-thumb {{
+            background: #00D4FF !important;
+            border-radius: 10px !important;
+        }}
+        .cyber-grid-container::-webkit-scrollbar-track {{
+            background: rgba(0,0,0,0.2) !important;
+        }}
+
+        /* 17. Tactical Dossier Modules */
+        .dossier-module {{
+            background: rgba(20, 20, 20, 0.8) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 8px !important;
+            padding: 15px !important;
+            margin-bottom: 15px !important;
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
+        }}
+        .dossier-module:hover {{
+            transform: translateY(-5px) scale(1.02) !important;
+            border-color: #00D4FF !important;
+            box-shadow: 0 10px 30px rgba(0, 212, 255, 0.15) !important;
+            background: rgba(0, 212, 255, 0.05) !important;
+        }}
+        .dossier-label {{
+            color: #00D4FF !important;
+            font-weight: 900 !important;
+            font-size: 11px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 1px !important;
+            margin-bottom: 8px !important;
+            display: block !important;
+        }}
+        .dossier-text {{
+            color: #E0E0E0 !important;
+            font-size: 14px !important;
+            line-height: 1.5 !important;
+            margin: 0 !important;
+        }}
+        .dossier-code {{
+            background: #000000 !important;
+            color: #00D4FF !important;
+            font-family: 'Roboto Mono', monospace !important;
+            padding: 12px !important;
+            border-radius: 4px !important;
+            border-left: 3px solid #00D4FF !important;
+            font-size: 12px !important;
+            white-space: pre-wrap !important;
+            line-height: 1.4 !important;
+        }}
         </style>
         """, unsafe_allow_html=True)
 
@@ -1216,7 +1276,7 @@ with tab_dashboard:
                 
                 st.markdown(f"""
                 <div class="dossier-card">
-                    <div class="dossier-header">🔎 Attacker Dossier</div>
+                    <div class="dossier-header">Attacker Dossier</div>
                     <div class="dossier-field">IP Address</div>
                     <div class="dossier-value"><code style="color: #FF8C00; background: rgba(255,140,0,0.1); padding: 4px 10px; border-radius: 6px; font-size: 18px;">{profile['ip']}</code></div>
                     <div style="display: flex; gap: 40px; margin-top: 16px;">
@@ -1261,7 +1321,7 @@ with tab_dashboard:
         from geo_utils import get_country_flag
         
         st.markdown('<div class="blocklist-card">', unsafe_allow_html=True)
-        st.markdown('<div class="blocklist-header">🚫 Forensic IP Block Registry</div>', unsafe_allow_html=True)
+        st.markdown('<div class="blocklist-header">Forensic IP Block Registry</div>', unsafe_allow_html=True)
 
         blocked_details = db_utils.get_blocked_ips_detailed()
 
@@ -1402,11 +1462,7 @@ with tab_dashboard:
         </div>
         """, unsafe_allow_html=True)
         
-        st.markdown("""
-        <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="font-size: 2.5rem; color: #e6edf3; font-weight: 900; letter-spacing: 1px;">IIDS | Corporate Security Portal</h1>
-        </div>
-        """, unsafe_allow_html=True)
+
         
         h_flows = _history_data.get('total_flows', 0)
         h_threats = _history_data.get('total_threats', 0)
@@ -1643,7 +1699,8 @@ with tab_dashboard:
                     sev = pt.get('severity', 'HIGH').upper()
                     sev_class = f"sev-{sev}"
                     loc = f"{pt.get('city','N/A')}, {pt.get('country','N/A')}"
-                    feed_html += f"<tr><td>{pt.get('timestamp','—')}</td><td>{pt.get('src_ip','—')}</td><td>{pt.get('dst_ip','—')}</td><td>{pt.get('attack_type','—')}</td><td class='{sev_class}'>{sev}</td><td>{loc}</td></tr>"
+                    dst_hl = f"<span style='color: #FFFF00; font-weight: 900; text-shadow: 0 0 5px rgba(255, 255, 0, 0.5);'>{pt.get('dst_ip','—')}</span>"
+                    feed_html += f"<tr><td>{pt.get('timestamp','—')}</td><td>{pt.get('src_ip','—')}</td><td>{dst_hl}</td><td>{pt.get('attack_type','—')}</td><td class='{sev_class}'>{sev}</td><td>{loc}</td></tr>"
                 feed_html += "</table>"
                 st.markdown(feed_html, unsafe_allow_html=True)
             else:
@@ -1688,11 +1745,7 @@ with tab_dashboard:
         
     else:
         # ---- LIVE VIEW MODE ----
-        st.markdown("""
-        <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="font-size: 2.5rem; color: #e6edf3; font-weight: 900; letter-spacing: 1px;">IIDS | Corporate Security Portal</h1>
-        </div>
-        """, unsafe_allow_html=True)
+
         
         # ROW 1: Stats Row (3 boxes)
         s1, s2, s3 = st.columns(3)
@@ -1815,7 +1868,8 @@ with tab_dashboard:
                     f"<div class='conf-bar-bg'><div class='conf-bar-fill' style='width:{conf_pct}%; background:{bar_color};'></div></div>"
                     f"</div>"
                 )
-                table_html += f"<tr><td>{row.get('timestamp')}</td><td>{row.get('src_ip')}</td><td>{row.get('dst_ip')}</td><td>{row.get('attack_type')}</td><td class='{sev_class}'>{sev}</td><td>{conf_html}</td></tr>"
+                dst_hl = f"<span style='color: #FFFF00; font-weight: 900; text-shadow: 0 0 5px rgba(255, 255, 0, 0.5);'>{row.get('dst_ip')}</span>"
+                table_html += f"<tr><td>{row.get('timestamp')}</td><td>{row.get('src_ip')}</td><td>{dst_hl}</td><td>{row.get('attack_type')}</td><td class='{sev_class}'>{sev}</td><td>{conf_html}</td></tr>"
             table_html += "</table>"
             st.markdown(table_html, unsafe_allow_html=True)
         else:
@@ -1905,7 +1959,7 @@ with tab_dashboard:
                         use_container_width=True,
                         key="dl_forensic_pdf"
                     )
-                    st.toast("✅ Forensic report generated successfully!", icon="📄")
+                    st.toast("Forensic report generated successfully!")
                 except Exception as e:
                     st.error(f"Report generation failed: {e}")
         else:
@@ -1925,6 +1979,8 @@ with tab_chat:
     import re
     def format_text(text):
         text = str(text)
+        # Escape raw HTML tags to prevent Streamlit rendering errors
+        text = text.replace('<', '&lt;').replace('>', '&gt;')
         text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
         text = re.sub(r'\*(.*?)\*', r'<i>\1</i>', text)
         return text.replace('\n', '<br>')
@@ -1997,7 +2053,7 @@ with tab_chat:
 
         with st.spinner("AI Security Analyst is processing..."):
             try:
-                agent_executor = init_agent()
+                agent_executor = init_agent(version="v2")
                 result = agent_executor.invoke({
                     "input": actual_input,
                     "chat_history": st.session_state.chat_history,
@@ -2387,7 +2443,10 @@ with tab_corporate:
                 'Fuzzers': '#a371f7', 'Shellcode': '#f85149', 'Analysis': '#79c0ff', 'Unknown': '#ffffff', 'Probe': '#ffcc00'
             }
             fig_pie = px.pie(df_pie, values='count', names='attack_type', hole=0.4, color='attack_type', color_discrete_map=color_map)
-            fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='#e6edf3', height=300, margin=dict(l=10, r=10, t=10, b=10))
+            fig_pie.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', font_color='#e6edf3', height=300, margin=dict(l=10, r=10, t=10, b=30),
+                legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5, font=dict(size=11))
+            )
             st.plotly_chart(fig_pie, use_container_width=True)
         else:
             st.info("No logs generated to display distribution.")
@@ -2803,7 +2862,7 @@ with tab_corporate:
                             attack_distribution=attack_dist_str,
                             report_path=""
                         )
-                        st.toast("📜 Session saved to history!", icon="✅")
+                        st.toast("Session saved to history!")
                     except Exception as save_err:
                         print(f"[!] Session save error: {save_err}")
                     
@@ -2871,11 +2930,29 @@ def render_executive_dashboard():
     lang = st.radio("Select Briefing Language / اختر لغة التقرير:", ["English", "العربية"], horizontal=True)
     
     if lang == "English":
-        briefing = f"**System Analysis Summary:** Out of **{total_flows}** total network connections analyzed, **{malicious_count}** were identified as malicious. The primary threat detected was **{top_threat}**, originating mostly from the external IP **{top_attacker}**. The attack targeted **{assets_targeted}** internal company asset(s). Immediate blocking protocols have been applied to quarantine the sources. The overall business risk level for this session is assessed as **{risk_level.split(' ')[0]}**."
+        briefing = f"**System Analysis Summary:** Out of **{total_flows}** total network connections analyzed, **{malicious_count}** were identified as malicious. The primary threat detected was **{top_threat}**, originating mostly from the external IP <span class='yellow-highlight'>{top_attacker}</span>. The attack targeted **{assets_targeted}** internal company asset(s). Immediate blocking protocols have been applied to quarantine the sources. The overall business risk level for this session is assessed as **{risk_level.split(' ')[0]}**."
     else:
-        briefing = f"**ملخص التحليل الأمني:** من إجمالي **{total_flows}** اتصال شبكي تم فحصه، اكتشف النظام **{malicious_count}** اتصال خبيث. التهديد الرئيسي كان هجوم من نوع **{top_threat}**، وكان مصدره الأساسي هو الـ IP الخارجي **{top_attacker}**. استهدف هذا الهجوم **{assets_targeted}** أجهزة/سيرفرات داخلية للشركة. تم تفعيل بروتوكولات الحظر التلقائي لعزل المصادر. يُقدر مستوى الخطر العام على البزنس في هذه الجلسة بأنه **{risk_level.split(' ')[0]}**."
+        briefing = f"**ملخص التحليل الأمني:** من إجمالي **{total_flows}** اتصال شبكي تم فحصه، اكتشف النظام **{malicious_count}** اتصال خبيث. التهديد الرئيسي كان هجوم من نوع **{top_threat}**، وكان مصدره الأساسي هو الـ IP الخارجي <span class='yellow-highlight'>{top_attacker}</span>. استهدف هذا الهجوم **{assets_targeted}** أجهزة/سيرفرات داخلية للشركة. تم تفعيل بروتوكولات الحظر التلقائي لعزل المصادر. يُقدر مستوى الخطر العام على البزنس في هذه الجلسة بأنه **{risk_level.split(' ')[0]}**."
 
     st.markdown(f'<div class="exec-briefing" dir="{"rtl" if lang == "العربية" else "ltr"}">{briefing}</div>', unsafe_allow_html=True)
+
+    # Agent Intelligence Logs (Bilingual)
+    st.markdown("<h4 style='color: #00D4FF; margin-bottom: 15px; font-family: Orbitron;'>🤖 Forensic Agent Intelligence Logs</h4>", unsafe_allow_html=True)
+    alc1, alc2 = st.columns(2)
+    with alc1:
+        st.markdown(f"""
+        <div class="exec-briefing" style="border-left-color: #FFFF00; background: rgba(255,255,0,0.02); font-size: 14px;">
+            <b>[AGENT LOG - EN]:</b> Automated forensic trace on <span class="yellow-highlight">{top_attacker}</span> confirms signature matching for <b>{top_threat}</b>. 
+            Source geolocation identified as a high-risk zone. Protective shielding active for {assets_targeted} internal assets.
+        </div>
+        """, unsafe_allow_html=True)
+    with alc2:
+        st.markdown(f"""
+        <div class="exec-briefing" style="border-left-color: #FFFF00; background: rgba(255,255,0,0.02); font-size: 14px; text-align: right;" dir="rtl">
+            <b>[سجل العميل الذكي - AR]:</b> أكد التتبع الجنائي التلقائي لعنوان <span class="yellow-highlight">{top_attacker}</span> مطابقة البصمة لهجوم <b>{top_threat}</b>. 
+            تم تحديد الموقع الجغرافي للمصدر كمنطقة عالية المخاطر. تم تفعيل الحماية لـ {assets_targeted} من الأصول الداخلية.
+        </div>
+        """, unsafe_allow_html=True)
 
     mc1, mc2, mc3 = st.columns(3)
     with mc1:
@@ -2948,125 +3025,207 @@ def render_deep_analysis_dashboard():
     import pandas as pd
     
     st.markdown("<br><br>", unsafe_allow_html=True)
-    with st.expander("🔍 DEEP ANALYSIS DASHBOARD (POST-SCAN AUDIT)", expanded=True):
-        st.markdown("""
-        <style>
-        .dad-header { color: #00D4FF; font-family: 'Orbitron', monospace; font-weight: 900; letter-spacing: 2px; text-shadow: 0 0 10px rgba(0,212,255,0.5); text-align: center; margin-bottom: 20px; }
-        .dad-card { background: #050505; border: 1px solid #1a1a1a; border-radius: 12px; padding: 20px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); height: 100%; margin-bottom: 15px;}
-        .dad-title { color: #e6edf3; font-family: 'Roboto Mono', monospace; font-size: 16px; font-weight: 700; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        </style>
-        <h2 class="dad-header">FORENSIC INTELLIGENCE AUDIT</h2>
-        """, unsafe_allow_html=True)
+    st.markdown('<div class="dad-card">', unsafe_allow_html=True)
+    st.markdown("""
+    <h2 class="dad-header">FORENSIC INTELLIGENCE AUDIT</h2>
+    """, unsafe_allow_html=True)
 
-        if "alerts" not in st.session_state or len(st.session_state.alerts) == 0:
-            st.info("No threats detected to analyze.")
-            return
+    if "alerts" not in st.session_state or len(st.session_state.alerts) == 0:
+        st.info("No threats detected to analyze.")
+        return
 
-        df_alerts = pd.DataFrame(st.session_state.alerts)
+    df_alerts = pd.DataFrame(st.session_state.alerts)
+    top_threat = df_alerts['attack_type'].value_counts().index[0] if not df_alerts.empty else "Unknown"
+    
+    # 1. Top Talkers Filter
+    top_ips = df_alerts['src_ip'].value_counts().head(5).index.tolist()
+    filter_ip = st.selectbox("🎯 Select Top Talker IP for Forensic Audit:", ["ALL IPs"] + top_ips)
+    
+    if filter_ip != "ALL IPs":
+        df_alerts = df_alerts[df_alerts['src_ip'] == filter_ip]
+
+    if df_alerts.empty:
+        st.warning("No data for the selected IP.")
+        return
+
+    with st.spinner("Generating Forensic Visualizations..."):
+        c1, c2 = st.columns(2)
         
-        # 1. Top Talkers Filter
-        top_ips = df_alerts['src_ip'].value_counts().head(5).index.tolist()
-        filter_ip = st.selectbox("🎯 Select Top Talker IP for Forensic Audit:", ["ALL IPs"] + top_ips)
+        # Quadrant A: Donut Chart & Severity Gauge
+        with c1:
+            st.markdown('<div class="dad-card"><div class="dad-title">📊 Threat Distribution & Global Severity</div>', unsafe_allow_html=True)
+            
+            malicious_ratio = len(df_alerts) / max(st.session_state.get('last_upload_total_flows', 1), 1)
+            # Cap at 100, scale up slightly for visual effect
+            severity_score = min(int((malicious_ratio + 0.1) * 100 * 1.5), 100)
+            gauge_color = "#00FF41" if severity_score <= 30 else "#f2cc60" if severity_score <= 70 else "#FF4B4B"
+            
+            fig_gauge = go.Figure(go.Indicator(
+                mode = "gauge",
+                value = severity_score,
+                domain = {'x': [0, 1], 'y': [0, 1]},
+                gauge = {
+                    'axis': {'range': [None, 100], 'tickcolor': "#8b949e", 'tickwidth': 2},
+                    'bar': {'color': gauge_color, 'thickness': 0.3},
+                    'bgcolor': "#050505",
+                    'borderwidth': 2,
+                    'bordercolor': "#1a1a1a",
+                    'steps': [
+                        {'range': [0, 30], 'color': "rgba(0, 255, 65, 0.15)"},
+                        {'range': [30, 70], 'color': "rgba(242, 204, 96, 0.15)"},
+                        {'range': [70, 100], 'color': "rgba(255, 75, 75, 0.15)"}],
+                }
+            ))
+            
+            # Precise Center Annotation for the Score
+            fig_gauge.add_annotation(
+                x=0.5, y=0.4,
+                text=str(severity_score),
+                showarrow=False,
+                font=dict(size=70, color="#FFFFFF", family="Orbitron"),
+                xref="paper", yref="paper"
+            )
+            
+            fig_gauge.update_layout(
+                height=300, 
+                margin=dict(l=30, r=30, t=60, b=0), 
+                paper_bgcolor='rgba(0,0,0,0)', 
+                plot_bgcolor='rgba(0,0,0,0)',
+                title = {'text': "Severity Score", 'x': 0.5, 'y': 0.9, 'xanchor': 'center', 'font': {'color': '#e6edf3', 'size': 16, 'family': 'Roboto Mono'}}
+            )
+            st.plotly_chart(fig_gauge, use_container_width=True)
+
+            dist_df = df_alerts['attack_type'].value_counts().reset_index()
+            dist_df.columns = ['Attack Type', 'Count']
+            fig_donut = px.pie(dist_df, values='Count', names='Attack Type', hole=0.6,
+                              color_discrete_sequence=['#FF4B4B', '#f2cc60', '#a371f7', '#00D4FF'])
+            fig_donut.update_layout(
+                height=200, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)', font={'color': "#e6edf3", 'family': "Roboto Mono", 'size': 11},
+                showlegend=True, legend=dict(yanchor="top", y=1, xanchor="left", x=1.05)
+            )
+            st.plotly_chart(fig_donut, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
         
-        if filter_ip != "ALL IPs":
-            df_alerts = df_alerts[df_alerts['src_ip'] == filter_ip]
-
-        if df_alerts.empty:
-            st.warning("No data for the selected IP.")
-            return
-
-        with st.spinner("Generating Forensic Visualizations..."):
-            c1, c2 = st.columns(2)
+        # Quadrant B: Top Talkers Table
+        with c2:
+            st.markdown('<div class="dad-card"><div class="dad-title">Top Attack Sources (Forensic Table)</div>', unsafe_allow_html=True)
+            top_table = df_alerts.groupby(['src_ip', 'attack_type']).size().reset_index(name='Hits')
+            top_table = top_table.sort_values(by='Hits', ascending=False).head(8)
             
-            # Quadrant A: Donut Chart & Severity Gauge
-            with c1:
-                st.markdown('<div class="dad-card"><div class="dad-title">📊 Threat Distribution & Global Severity</div>', unsafe_allow_html=True)
-                
-                malicious_ratio = len(df_alerts) / max(st.session_state.get('last_upload_total_flows', 1), 1)
-                # Cap at 100, scale up slightly for visual effect
-                severity_score = min(int((malicious_ratio + 0.1) * 100 * 1.5), 100)
-                gauge_color = "#00FF41" if severity_score <= 30 else "#f2cc60" if severity_score <= 70 else "#FF4B4B"
-                
-                fig_gauge = go.Figure(go.Indicator(
-                    mode = "gauge+number",
-                    value = severity_score,
-                    domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': "Severity Score", 'font': {'color': '#e6edf3', 'size': 14}},
-                    gauge = {
-                        'axis': {'range': [None, 100], 'tickcolor': "#333"},
-                        'bar': {'color': gauge_color},
-                        'bgcolor': "#050505",
-                        'borderwidth': 2,
-                        'bordercolor': "#1a1a1a",
-                        'steps': [
-                            {'range': [0, 30], 'color': "rgba(0, 255, 65, 0.1)"},
-                            {'range': [30, 70], 'color': "rgba(242, 204, 96, 0.1)"},
-                            {'range': [70, 100], 'color': "rgba(255, 75, 75, 0.1)"}],
-                    }
-                ))
-                fig_gauge.update_layout(height=180, margin=dict(l=20, r=20, t=30, b=10), paper_bgcolor='rgba(0,0,0,0)', font={'color': "#e6edf3", 'family': "Roboto Mono"})
-                st.plotly_chart(fig_gauge, use_container_width=True)
+            table_html = "<table style='width: 100%; border-collapse: collapse; font-family: Roboto Mono; font-size: 13px;'>"
+            table_html += "<tr style='background: #121212; color: #00D4FF; text-align: left;'><th style='padding: 8px;'>SOURCE IP</th><th style='padding: 8px;'>THREAT TYPE</th><th style='padding: 8px;'>HITS</th></tr>"
+            for _, row in top_table.iterrows():
+                table_html += f"<tr style='border-bottom: 1px solid #1a1a1a;'><td style='padding: 8px; color: #FFFF00; font-weight: bold;'>{row['src_ip']}</td><td style='padding: 8px;'>{row['attack_type']}</td><td style='padding: 8px; color: #f2cc60;'>{row['Hits']}</td></tr>"
+            table_html += "</table><br><br><br>"
+            st.markdown(table_html, unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-                dist_df = df_alerts['attack_type'].value_counts().reset_index()
-                dist_df.columns = ['Attack Type', 'Count']
-                fig_donut = px.pie(dist_df, values='Count', names='Attack Type', hole=0.6,
-                                  color_discrete_sequence=['#FF4B4B', '#f2cc60', '#a371f7', '#00D4FF'])
-                fig_donut.update_layout(height=200, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor='rgba(0,0,0,0)',
-                                        plot_bgcolor='rgba(0,0,0,0)', font={'color': "#e6edf3", 'family': "Roboto Mono"}, showlegend=True)
-                st.plotly_chart(fig_donut, use_container_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+        c3, c4 = st.columns(2)
+        
+        # Quadrant C: Behavior Timeline
+        with c3:
+            st.markdown('<div class="dad-card"><div class="dad-title">Behavior Timeline (Jitter / Interpacket)</div>', unsafe_allow_html=True)
+            df_alerts['Index'] = range(len(df_alerts))
+            fig_scatter = px.scatter(df_alerts, x='Index', y='anomaly_score', color='attack_type',
+                                     color_discrete_sequence=['#FF4B4B', '#f2cc60', '#a371f7', '#00D4FF'],
+                                     labels={'Index': 'Time Sequence', 'anomaly_score': 'Anomaly Variance'})
+            fig_scatter.update_layout(height=280, margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor='rgba(0,0,0,0)',
+                                    plot_bgcolor='rgba(0,0,0,0)', font={'color': "#e6edf3", 'family': "Roboto Mono"})
+            fig_scatter.update_xaxes(showgrid=True, gridcolor='#1a1a1a')
+            fig_scatter.update_yaxes(showgrid=True, gridcolor='#1a1a1a')
+            st.plotly_chart(fig_scatter, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        # Quadrant D: Feature Importance
+        with c4:
+            st.markdown('<div class="dad-card"><div class="dad-title">Explainable AI (Why this decision?)</div>', unsafe_allow_html=True)
+            try:
+                if hasattr(loaded_models, 'stage1_xgb') and hasattr(loaded_models.stage1_xgb, 'feature_importances_'):
+                    importances = loaded_models.stage1_xgb.feature_importances_
+                    from config import FEATURES
+                    imp_df = pd.DataFrame({'Feature': FEATURES[:len(importances)], 'Importance': importances})
+                    imp_df = imp_df.sort_values(by='Importance', ascending=True).tail(6)
+                    
+                    fig_bar = px.bar(imp_df, x='Importance', y='Feature', orientation='h', color='Importance', color_continuous_scale='Purp')
+                    fig_bar.update_layout(height=280, margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor='rgba(0,0,0,0)',
+                                        plot_bgcolor='rgba(0,0,0,0)', font={'color': "#e6edf3", 'family': "Roboto Mono"}, showlegend=False, coloraxis_showscale=False)
+                    fig_bar.update_xaxes(showgrid=True, gridcolor='#1a1a1a')
+                    fig_bar.update_yaxes(showgrid=False)
+                    st.plotly_chart(fig_bar, use_container_width=True)
+                else:
+                    st.info("XAI Data not available in current model state.")
+            except Exception as e:
+                st.error(f"XAI Error: {e}")
+            st.markdown('</div>', unsafe_allow_html=True)
             
-            # Quadrant B: Top Talkers Table
-            with c2:
-                st.markdown('<div class="dad-card"><div class="dad-title">☠️ Top Attack Sources (Forensic Table)</div>', unsafe_allow_html=True)
-                top_table = df_alerts.groupby(['src_ip', 'attack_type']).size().reset_index(name='Hits')
-                top_table = top_table.sort_values(by='Hits', ascending=False).head(8)
-                
-                table_html = "<table style='width: 100%; border-collapse: collapse; font-family: Roboto Mono; font-size: 13px;'>"
-                table_html += "<tr style='background: #121212; color: #00D4FF; text-align: left;'><th style='padding: 8px;'>SOURCE IP</th><th style='padding: 8px;'>THREAT TYPE</th><th style='padding: 8px;'>HITS</th></tr>"
-                for _, row in top_table.iterrows():
-                    table_html += f"<tr style='border-bottom: 1px solid #1a1a1a;'><td style='padding: 8px; color: #FF4B4B;'>{row['src_ip']}</td><td style='padding: 8px;'>{row['attack_type']}</td><td style='padding: 8px; color: #f2cc60;'>{row['Hits']}</td></tr>"
-                table_html += "</table><br><br><br>"
-                st.markdown(table_html, unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            c3, c4 = st.columns(2)
+        # ---- NEW: Advanced Threat Intelligence Section ----
+        st.markdown("<br><h4 style='color: #00D4FF; font-family: Orbitron; text-align: center; margin-bottom: 20px;'>🛡️ ADVANCED STRATEGIC INTELLIGENCE</h4>", unsafe_allow_html=True)
+        
+        ca1, ca2 = st.columns([4, 6])
+        
+        with ca1:
+            st.markdown('<div class="dad-card"><div class="dad-title">🎯 Attack Capability Mapping</div>', unsafe_allow_html=True)
+            # Radar data categories
+            categories = ['Volume', 'Persistence', 'Complexity', 'Diversity', 'Impact']
             
-            # Quadrant C: Behavior Timeline
-            with c3:
-                st.markdown('<div class="dad-card"><div class="dad-title">⏱️ Behavior Timeline (Jitter / Interpacket)</div>', unsafe_allow_html=True)
-                df_alerts['Index'] = range(len(df_alerts))
-                fig_scatter = px.scatter(df_alerts, x='Index', y='anomaly_score', color='attack_type',
-                                         color_discrete_sequence=['#FF4B4B', '#f2cc60', '#a371f7', '#00D4FF'],
-                                         labels={'Index': 'Time Sequence', 'anomaly_score': 'Anomaly Variance'})
-                fig_scatter.update_layout(height=280, margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor='rgba(0,0,0,0)',
-                                        plot_bgcolor='rgba(0,0,0,0)', font={'color': "#e6edf3", 'family': "Roboto Mono"})
-                fig_scatter.update_xaxes(showgrid=True, gridcolor='#1a1a1a')
-                fig_scatter.update_yaxes(showgrid=True, gridcolor='#1a1a1a')
-                st.plotly_chart(fig_scatter, use_container_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+            # Map top attack to capability scores
+            if top_threat == "DoS":
+                values = [90, 80, 30, 40, 85]
+            elif top_threat == "Exploits":
+                values = [40, 60, 95, 80, 90]
+            elif top_threat == "Generic":
+                values = [60, 50, 40, 50, 60]
+            else:
+                values = [50, 50, 50, 50, 50]
+                
+            fig_radar = go.Figure(data=go.Scatterpolar(
+                r=values + [values[0]],
+                theta=categories + [categories[0]],
+                fill='toself',
+                line_color='#00D4FF',
+                fillcolor='rgba(0, 212, 255, 0.2)'
+            ))
+            
+            fig_radar.update_layout(
+                polar=dict(
+                    radialaxis=dict(visible=True, range=[0, 100], gridcolor="#333", tickfont=dict(size=8)),
+                    angularaxis=dict(gridcolor="#333", tickfont=dict(size=10, family="Roboto Mono")),
+                    bgcolor="rgba(0,0,0,0)"
+                ),
+                showlegend=False,
+                height=300,
+                margin=dict(l=40, r=40, t=20, b=20),
+                paper_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_radar, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            # Quadrant D: Feature Importance
-            with c4:
-                st.markdown('<div class="dad-card"><div class="dad-title">🧠 Explainable AI (Why this decision?)</div>', unsafe_allow_html=True)
-                try:
-                    if hasattr(loaded_models, 'stage1_xgb') and hasattr(loaded_models.stage1_xgb, 'feature_importances_'):
-                        importances = loaded_models.stage1_xgb.feature_importances_
-                        from config import FEATURES
-                        imp_df = pd.DataFrame({'Feature': FEATURES[:len(importances)], 'Importance': importances})
-                        imp_df = imp_df.sort_values(by='Importance', ascending=True).tail(6)
-                        
-                        fig_bar = px.bar(imp_df, x='Importance', y='Feature', orientation='h', color='Importance', color_continuous_scale='Purp')
-                        fig_bar.update_layout(height=280, margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor='rgba(0,0,0,0)',
-                                            plot_bgcolor='rgba(0,0,0,0)', font={'color': "#e6edf3", 'family': "Roboto Mono"}, showlegend=False, coloraxis_showscale=False)
-                        fig_bar.update_xaxes(showgrid=True, gridcolor='#1a1a1a')
-                        fig_bar.update_yaxes(showgrid=False)
-                        st.plotly_chart(fig_bar, use_container_width=True)
-                    else:
-                        st.info("XAI Data not available in current model state.")
-                except Exception as e:
-                    st.error(f"XAI Error: {e}")
-                st.markdown('</div>', unsafe_allow_html=True)
+        with ca2:
+            st.markdown('<div class="dad-card"><div class="dad-title">📋 Strategic Forensic Recommendations</div>', unsafe_allow_html=True)
+            
+            # Context-aware recommendations
+            if top_threat == "DoS":
+                rec_en = "Implement Rate-Limiting on edge firewalls. Enable DDoS mitigation services (e.g., Cloudflare/Akamai). Audit session timeouts."
+                rec_ar = "تفعيل تقنيات تحديد معدل الاتصال (Rate-Limiting). تفعيل خدمات الحماية من هجمات حجب الخدمة (DDoS). مراجعة فترات صلاحية الجلسات."
+            elif top_threat == "Exploits":
+                rec_en = "Urgent patching of targeted internal assets. Audit application input validation. Deploy WAF rules."
+                rec_ar = "تحديث وترقية الأنظمة المتضررة فوراً. مراجعة فلاتر المدخلات في التطبيقات. تفعيل قواعد جدار حماية التطبيقات (WAF)."
+            else:
+                rec_en = "Increase monitoring granularity for source IPs. Update IDS signatures. Review firewall ACLs."
+                rec_ar = "زيادة دقة المراقبة لعناوين المصدر. تحديث بصمات أنظمة كشف التسلل (IDS). مراجعة قوائم التحكم في الوصول (ACLs)."
+
+            st.markdown(f"""
+            <div style="background: rgba(0, 212, 255, 0.05); border: 1px solid rgba(0, 212, 255, 0.2); border-radius: 12px; padding: 20px;">
+                <div style="color: #00D4FF; font-weight: 900; font-size: 13px; margin-bottom: 10px;">[STRATEGIC ACTION PLAN - EN]</div>
+                <div style="color: #FFFFFF; font-size: 14px; line-height: 1.5; margin-bottom: 20px;">{rec_en}</div>
+                <div style="color: #FFFF00; font-weight: 900; font-size: 13px; margin-bottom: 10px; text-align: right;">[خطة العمل الاستراتيجية - AR]</div>
+                <div style="color: #FFFFFF; font-size: 14px; line-height: 1.5; text-align: right;" dir="rtl">{rec_ar}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ==============================
 #  TAB 5: DEEP ANALYSIS

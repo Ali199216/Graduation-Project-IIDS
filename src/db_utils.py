@@ -46,9 +46,15 @@ def init_db():
             alert_sent INTEGER DEFAULT 0
         )
     ''')
+    try:
+        cursor.execute("SELECT attack_type FROM blocked_ips LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("DROP TABLE IF EXISTS blocked_ips")
+        
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS blocked_ips (
             ip TEXT PRIMARY KEY,
+            attack_type TEXT,
             date_added TEXT
         )
     ''')
@@ -158,14 +164,14 @@ def get_total_malicious_count():
     finally:
         conn.close()
 
-def block_ip_db(ip):
+def block_ip_db(ip, attack_type="Manual Block"):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT OR IGNORE INTO blocked_ips (ip, date_added)
-            VALUES (?, ?)
-        ''', (ip, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            INSERT OR REPLACE INTO blocked_ips (ip, attack_type, date_added)
+            VALUES (?, ?, ?)
+        ''', (ip, attack_type, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     finally:
         conn.close()
 
@@ -347,6 +353,14 @@ def clear_db():
     try:
         cursor = conn.cursor()
         cursor.execute('DELETE FROM attack_logs')
+        cursor.execute('DELETE FROM blocked_ips')
+    finally:
+        conn.close()
+
+def clear_blocklist_db():
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
         cursor.execute('DELETE FROM blocked_ips')
     finally:
         conn.close()
