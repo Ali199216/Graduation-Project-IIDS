@@ -29,6 +29,7 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS attack_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_email TEXT,
             timestamp TEXT,
             src_ip TEXT,
             dst_ip TEXT,
@@ -43,22 +44,35 @@ def init_db():
             country TEXT,
             latitude REAL,
             longitude REAL,
-            alert_sent INTEGER DEFAULT 0,
             alert_sent INTEGER DEFAULT 0
         )
     ''')
+    # Migrate attack_logs: add user_email column if missing
     try:
-        cursor.execute("SELECT attack_type FROM blocked_ips LIMIT 1")
+        cursor.execute("SELECT user_email FROM attack_logs LIMIT 1")
     except sqlite3.OperationalError:
-        cursor.execute("DROP TABLE IF EXISTS blocked_ips")
-        
+        try:
+            cursor.execute("ALTER TABLE attack_logs ADD COLUMN user_email TEXT")
+        except:
+            pass
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS blocked_ips (
-            ip TEXT PRIMARY KEY,
+            ip TEXT,
+            user_email TEXT,
             attack_type TEXT,
-            date_added TEXT
+            date_added TEXT,
+            PRIMARY KEY (ip, user_email)
         )
     ''')
+    # Migrate blocked_ips: add user_email column if missing
+    try:
+        cursor.execute("SELECT user_email FROM blocked_ips LIMIT 1")
+    except sqlite3.OperationalError:
+        try:
+            cursor.execute("ALTER TABLE blocked_ips ADD COLUMN user_email TEXT")
+        except:
+            pass
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,7 +114,7 @@ def get_db_connection():
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
-def save_attack_to_db(alert):
+def save_attack_to_db(alert, user_email=""):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
@@ -116,9 +130,10 @@ def save_attack_to_db(alert):
             city, country, lat, lon = _get_mock_location()
         
         cursor.execute('''
-            INSERT INTO attack_logs (timestamp, src_ip, dst_ip, attack_type, severity, anomaly_score, malicious_probability, details, status, shap_explanation, city, country, latitude, longitude)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO attack_logs (user_email, timestamp, src_ip, dst_ip, attack_type, severity, anomaly_score, malicious_probability, details, status, shap_explanation, city, country, latitude, longitude)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
+            user_email,
             ts,
             src_ip,
             alert.get('dst_ip', ''),
@@ -145,71 +160,84 @@ def save_attack_to_db(alert):
     finally:
         conn.close()
 
-def get_all_logs(limit=100):
+def get_all_logs(user_email="", limit=100):
     conn = get_db_connection()
     try:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute('SELECT * FROM attack_logs ORDER BY id DESC LIMIT ?', (limit,))
+        if user_email:
+            cursor.execute('SELECT * FROM attack_logs WHERE user_email = ? ORDER BY id DESC LIMIT ?', (user_email, limit))
+        else:
+            cursor.execute('SELECT * FROM attack_logs ORDER BY id DESC LIMIT ?', (limit,))
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     finally:
         conn.close()
 
-def get_active_logs_count():
+def get_active_logs_count(user_email=""):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM attack_logs WHERE status='ACTIVE'")
+        if user_email:
+            cursor.execute("SELECT COUNT(*) FROM attack_logs WHERE status='ACTIVE' AND user_email = ?", (user_email,))
+        else:
+            cursor.execute("SELECT COUNT(*) FROM attack_logs WHERE status='ACTIVE'")
         return cursor.fetchone()[0]
     finally:
         conn.close()
 
-def get_total_malicious_count():
+def get_total_malicious_count(user_email=""):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM attack_logs")
+        if user_email:
+            cursor.execute("SELECT COUNT(*) FROM attack_logs WHERE user_email = ?", (user_email,))
+        else:
+            cursor.execute("SELECT COUNT(*) FROM attack_logs")
         return cursor.fetchone()[0]
     finally:
         conn.close()
 
-def block_ip_db(ip, attack_type="Manual Block"):
+def block_ip_db(ip, user_email="", attack_type="Manual Block"):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT OR REPLACE INTO blocked_ips (ip, attack_type, date_added)
-            VALUES (?, ?, ?)
-        ''', (ip, attack_type, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            INSERT OR REPLACE INTO blocked_ips (ip, user_email, attack_type, date_added)
+            VALUES (?, ?, ?, ?)
+        ''', (ip, user_email, attack_type, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     finally:
         conn.close()
 
-def unblock_ip_db(ip):
+def unblock_ip_db(ip, user_email=""):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute('DELETE FROM blocked_ips WHERE ip = ?', (ip,))
+        cursor.execute('DELETE FROM blocked_ips WHERE ip = ? AND user_email = ?', (ip, user_email))
     finally:
         conn.close()
 
-def get_blocked_ips_db():
+def get_blocked_ips_db(user_email=""):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT ip FROM blocked_ips')
+        if user_email:
+            cursor.execute('SELECT ip FROM blocked_ips WHERE user_email = ?', (user_email,))
+        else:
+            cursor.execute('SELECT ip FROM blocked_ips')
         rows = cursor.fetchall()
         return set(row[0] for row in rows)
     finally:
         conn.close()
 
-def get_blocked_ips_detailed():
+def get_blocked_ips_detailed(user_email=""):
     """Get blocked IPs with their block timestamp, attack type, coordinates, and anomaly metrics."""
     conn = get_db_connection()
     try:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute('''
+        
+        query = '''
             SELECT b.ip, b.date_added,
                    COALESCE(a.attack_type, 'Manual Block') AS attack_type,
                    COALESCE(a.severity, 'N/A') AS severity,
@@ -222,18 +250,23 @@ def get_blocked_ips_detailed():
                    COALESCE(s.total_hits, 1) AS total_hits
             FROM blocked_ips b
             LEFT JOIN (
-                SELECT src_ip, attack_type, severity, latitude, longitude, city, country,
+                SELECT src_ip, user_email, attack_type, severity, latitude, longitude, city, country,
                        anomaly_score, malicious_probability,
-                       ROW_NUMBER() OVER (PARTITION BY src_ip ORDER BY id DESC) AS rn
+                       ROW_NUMBER() OVER (PARTITION BY src_ip, user_email ORDER BY id DESC) AS rn
                 FROM attack_logs
-            ) a ON b.ip = a.src_ip AND a.rn = 1
+            ) a ON b.ip = a.src_ip AND b.user_email = a.user_email AND a.rn = 1
             LEFT JOIN (
-                SELECT src_ip, COUNT(*) AS total_hits
+                SELECT src_ip, user_email, COUNT(*) AS total_hits
                 FROM attack_logs
-                GROUP BY src_ip
-            ) s ON b.ip = s.src_ip
-            ORDER BY b.date_added DESC
-        ''')
+                GROUP BY src_ip, user_email
+            ) s ON b.ip = s.src_ip AND b.user_email = s.user_email
+        '''
+        if user_email:
+            query += " WHERE b.user_email = ?"
+            cursor.execute(query + " ORDER BY b.date_added DESC", (user_email,))
+        else:
+            cursor.execute(query + " ORDER BY b.date_added DESC")
+            
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     finally:
@@ -300,17 +333,23 @@ def get_normal_vs_attack_baseline(ip):
         conn.close()
 
 
-def get_attacker_profile(ip):
+def get_attacker_profile(ip, user_email=""):
     """Build a full attacker dossier for a given IP address."""
     conn = get_db_connection()
     try:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         # Get all attacks from this IP
-        cursor.execute('''
-            SELECT attack_type, severity, timestamp, dst_ip, anomaly_score, city, country
-            FROM attack_logs WHERE src_ip = ? ORDER BY id DESC
-        ''', (ip,))
+        if user_email:
+            cursor.execute('''
+                SELECT attack_type, severity, timestamp, dst_ip, anomaly_score, city, country
+                FROM attack_logs WHERE src_ip = ? AND user_email = ? ORDER BY id DESC
+            ''', (ip, user_email))
+        else:
+            cursor.execute('''
+                SELECT attack_type, severity, timestamp, dst_ip, anomaly_score, city, country
+                FROM attack_logs WHERE src_ip = ? ORDER BY id DESC
+            ''', (ip,))
         rows = [dict(r) for r in cursor.fetchall()]
         
         if not rows:
@@ -358,20 +397,27 @@ def get_attacker_profile(ip):
     finally:
         conn.close()
 
-def clear_db():
+def clear_db(user_email=""):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute('DELETE FROM attack_logs')
-        cursor.execute('DELETE FROM blocked_ips')
+        if user_email:
+            cursor.execute('DELETE FROM attack_logs WHERE user_email = ?', (user_email,))
+            cursor.execute('DELETE FROM blocked_ips WHERE user_email = ?', (user_email,))
+        else:
+            cursor.execute('DELETE FROM attack_logs')
+            cursor.execute('DELETE FROM blocked_ips')
     finally:
         conn.close()
 
-def clear_blocklist_db():
+def clear_blocklist_db(user_email=""):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute('DELETE FROM blocked_ips')
+        if user_email:
+            cursor.execute('DELETE FROM blocked_ips WHERE user_email = ?', (user_email,))
+        else:
+            cursor.execute('DELETE FROM blocked_ips')
     finally:
         conn.close()
 

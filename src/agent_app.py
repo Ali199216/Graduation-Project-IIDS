@@ -243,6 +243,31 @@ st.markdown("""
         color: #8b949e !important;
         font-family: 'Roboto Mono', monospace !important;
     }
+
+    /* 22. Chic Toast Styling */
+    @keyframes toast-in-out {
+        0% { transform: translateY(100px); opacity: 0; }
+        15% { transform: translateY(0); opacity: 1; }
+        85% { transform: translateY(0); opacity: 1; }
+        100% { transform: translateY(100px); opacity: 0; }
+    }
+    .chic-toast {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        background: rgba(0, 212, 255, 0.1);
+        backdrop-filter: blur(15px);
+        border: 1px solid #00D4FF;
+        border-left: 5px solid #00D4FF;
+        color: #FFFFFF;
+        padding: 15px 25px;
+        border-radius: 8px;
+        font-family: 'Roboto Mono', monospace;
+        font-size: 14px;
+        z-index: 999999;
+        box-shadow: 0 10px 30px rgba(0, 212, 255, 0.2);
+        animation: toast-in-out 4s ease-in-out forwards;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -252,9 +277,11 @@ if "app_launched" not in st.session_state:
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "alerts" not in st.session_state:
-    st.session_state.alerts = db_utils.get_all_logs(limit=100)
+    _u_email = st.session_state.get('user_email', '')
+    st.session_state.alerts = db_utils.get_all_logs(user_email=_u_email, limit=100)
 if "blocked_ips" not in st.session_state:
-    st.session_state.blocked_ips = db_utils.get_blocked_ips_db()
+    _u_email = st.session_state.get('user_email', '')
+    st.session_state.blocked_ips = db_utils.get_blocked_ips_db(user_email=_u_email)
 
 # ---- GLOBAL SIDEBAR (Hidden until Authenticated) ----
 if st.session_state.get('authenticated', False):
@@ -294,17 +321,26 @@ if st.session_state.get('authenticated', False):
         if st.button('REFRESH SYSTEM DATA', key='btn_ref_ctrl', use_container_width=True):
             st.rerun()
         
+        st.markdown('<div class="sidebar-header-clean">SYSTEM TERMINATION</div>', unsafe_allow_html=True)
+        if st.button('LOGOUT SESSION', key='btn_logout_ctrl', use_container_width=True):
+            st.session_state.clear()
+            st.rerun()
+        
         st.markdown('<div class="sidebar-header-clean">SECURITY ACTIONS</div>', unsafe_allow_html=True)
         if st.button('EMERGENCY LOCKDOWN', key='btn_lockdown_ctrl', use_container_width=True):
             st.toast('EMERGENCY MODE ENGAGED. Securing active perimeter...')
+            _u_email = st.session_state.get('user_email', '')
             for a in st.session_state.alerts:
                 if a.get('severity') in ['CRITICAL', 'HIGH']:
-                    db_utils.block_ip_db(a.get('src_ip'))
+                    db_utils.block_ip_db(a.get('src_ip'), user_email=_u_email)
             st.rerun()
         if st.button('PURGE SYSTEM DATA', key='btn_pur_ctrl', use_container_width=True):
-            db_utils.clear_db()
+            _u_email = st.session_state.get('user_email', '')
+            db_utils.clear_db(user_email=_u_email)
             st.session_state.messages = []
             st.session_state.chat_history = []
+            st.session_state.alerts = []
+            st.session_state.blocked_ips = set()
             st.rerun()
         
         st.markdown('<div class="sidebar-header-clean" style="color: #FF3131; border-bottom-color: rgba(255, 49, 49, 0.3);">BLOCK IP</div>', unsafe_allow_html=True)
@@ -1089,6 +1125,11 @@ if not st.session_state.authenticated:
                             st.session_state.current_user = user_data
                             st.session_state.user_email = login_email
                             st.session_state.profile_pic = user_data.get('profile_pic')
+                            
+                            #  IMMEDIATE DATA RE-SYNC FOR NEW USER
+                            st.session_state.alerts = db_utils.get_all_logs(user_email=login_email, limit=100)
+                            st.session_state.blocked_ips = db_utils.get_blocked_ips_db(user_email=login_email)
+                            
                             st.rerun()
                         else:
                             st.error("Invalid email or password.")
@@ -1212,16 +1253,23 @@ def load_sample_pool():
 sample_pool = load_sample_pool()
 
 # ---- Session State ----
-st.session_state.alerts = db_utils.get_all_logs(limit=100)
-st.session_state.blocked_ips = db_utils.get_blocked_ips_db()
-
+# ---- Session State (Authenticated Isolation) ----
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
-if "total_analyzed" not in st.session_state:
-    st.session_state.total_analyzed = db_utils.get_total_malicious_count() # Baseline
-st.session_state.total_malicious = db_utils.get_total_malicious_count()
+
+if st.session_state.get('authenticated', False):
+    _u_email = st.session_state.get('user_email', '')
+    st.session_state.alerts = db_utils.get_all_logs(user_email=_u_email, limit=100)
+    st.session_state.blocked_ips = db_utils.get_blocked_ips_db(user_email=_u_email)
+    st.session_state.total_analyzed = db_utils.get_total_malicious_count(user_email=_u_email)
+    st.session_state.total_malicious = db_utils.get_total_malicious_count(user_email=_u_email)
+else:
+    st.session_state.alerts = []
+    st.session_state.blocked_ips = set()
+    st.session_state.total_analyzed = 0
+    st.session_state.total_malicious = 0
 
 if "upload_success" in st.session_state:
     st.success(st.session_state.upload_success)
@@ -1299,7 +1347,7 @@ def render_user_profile_page():
         
     with c2:
         sessions = db_utils.get_sessions(user_email)
-        blocked_detailed = db_utils.get_blocked_ips_detailed()
+        blocked_detailed = db_utils.get_blocked_ips_detailed(user_email=user_email)
         
         # The 3-Column Intelligence Table (Final Internal Alignment)
         
@@ -1436,7 +1484,8 @@ def render_block_registry():
     st.markdown('<div class="breathing-title">ACTIVE THREAT REGISTRY</div>', unsafe_allow_html=True)
     st.markdown('<p style="text-align: center; color: #8b949e; margin-bottom: 30px;">High-fidelity forensic breakdown of quarantined network entities</p>', unsafe_allow_html=True)
     
-    blocked_data = db_utils.get_blocked_ips_detailed()
+    _u_email = st.session_state.get('user_email', '')
+    blocked_data = db_utils.get_blocked_ips_detailed(user_email=_u_email)
     
     if not blocked_data:
         st.info("The threat registry is currently empty. No active blocks recorded.")
@@ -1738,7 +1787,8 @@ with tab_dashboard:
 
         if _profile_ip:
             #  DOSSIER VIEW 
-            profile = db_utils.get_attacker_profile(_profile_ip)
+            _u_email = st.session_state.get('user_email', '')
+            profile = db_utils.get_attacker_profile(_profile_ip, user_email=_u_email)
             if profile:
                 risk_class = f"risk-{profile['risk']}"
                 tags_html = ''.join(f'<span class="dossier-tag">{t}</span>' for t in profile['tags'])
@@ -1793,7 +1843,9 @@ with tab_dashboard:
         st.markdown('<div class="blocklist-card">', unsafe_allow_html=True)
         st.markdown('<div class="blocklist-header">Forensic IP Block Registry</div>', unsafe_allow_html=True)
 
-        blocked_details = db_utils.get_blocked_ips_detailed()
+        #  LIST VIEW 
+        _u_email = st.session_state.get('user_email', '')
+        blocked_details = db_utils.get_blocked_ips_detailed(user_email=_u_email)
 
         if blocked_details:
             # Pre-fetch Normal vs Attack baselines for tooltip
@@ -2261,7 +2313,8 @@ with tab_dashboard:
 
         col_map_space1, col_map_center, col_map_space2 = st.columns([1, 8, 1])
         with col_map_center:
-            render_global_threat_map()
+            _u_email = st.session_state.get('user_email', '')
+            render_global_threat_map(user_email=_u_email)
         
         if _hl:
             if st.button("  Clear Focus  Return to Global View", key="btn_clear_focus", use_container_width=True):
@@ -2875,7 +2928,11 @@ with tab_corporate:
     import plotly.graph_objects as go
     import db_utils
     conn = db_utils.get_db_connection()
-    df_logs = pd.read_sql_query("SELECT * FROM attack_logs", conn)
+    _u_email = st.session_state.get('user_email', '')
+    if _u_email:
+        df_logs = pd.read_sql_query("SELECT * FROM attack_logs WHERE user_email = ?", conn, params=(_u_email,))
+    else:
+        df_logs = pd.read_sql_query("SELECT * FROM attack_logs", conn)
     
     # Speedometer Gauge
     with dash_col1:
@@ -3043,6 +3100,7 @@ with tab_corporate:
             st.session_state.stop_scan = True
             
         if start_scan:
+            st.markdown('<div class="chic-toast">INTELLIGENCE SCAN INITIALIZED: Processing network telemetry...</div>', unsafe_allow_html=True)
             st.session_state.stop_scan = False
             st.session_state.scan_initiated = True
             st.session_state.last_upload_total_flows = len(st.session_state.uploaded_df)
@@ -3213,7 +3271,8 @@ with tab_corporate:
                             }
                             
                             # Real-time DB save (updates alert with real lat/lon/city/country)
-                            db_utils.save_attack_to_db(alert)
+                            _u_email = st.session_state.get('user_email', '')
+                            db_utils.save_attack_to_db(alert, user_email=_u_email)
                             st.session_state.alerts.insert(0, alert.copy())
                             
                             # Create a SEPARATE map point for pydeck (uses real geolocation)
@@ -3229,7 +3288,8 @@ with tab_corporate:
                             
                             # Simulated API Push / Blocking
                             if src_ip not in st.session_state.blocked_ips:
-                                db_utils.block_ip_db(src_ip)
+                                _u_email = st.session_state.get('user_email', '')
+                                db_utils.block_ip_db(src_ip, user_email=_u_email)
                                 st.session_state.blocked_ips.add(src_ip)
                                 assets_shielded += 1
                                 
@@ -3390,7 +3450,7 @@ with tab_corporate:
                             attack_distribution=attack_dist_str,
                             report_path=""
                         )
-                        st.toast("Session saved to history!")
+                        st.markdown(f'<div class="chic-toast">DATA SYNCHRONIZED: {malicious_added} Threats archived to Intelligence Vault.</div>', unsafe_allow_html=True)
                     except Exception as save_err:
                         print(f"[!] Session save error: {save_err}")
                     

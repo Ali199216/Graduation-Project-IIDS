@@ -18,12 +18,16 @@ color_map = {
     'Unknown': '#ffffff'
 }
 
-def render_visualizations():
+def render_visualizations(user_email=""):
     """Generates and renders SOC Dashboard Visualizations from SQLite DB."""
     conn = get_db_connection()
     
     # 1. Bar Chart: Distribution of Attack Types
-    df_attacks = pd.read_sql_query("SELECT attack_type, COUNT(*) as count FROM attack_logs GROUP BY attack_type", conn)
+    if user_email:
+        query = "SELECT attack_type, COUNT(*) as count FROM attack_logs WHERE user_email = ? GROUP BY attack_type"
+        df_attacks = pd.read_sql_query(query, conn, params=(user_email,))
+    else:
+        df_attacks = pd.read_sql_query("SELECT attack_type, COUNT(*) as count FROM attack_logs GROUP BY attack_type", conn)
     
     col1, col2 = st.columns(2)
     
@@ -54,7 +58,11 @@ def render_visualizations():
     # 2. Time-Series Line Chart: Attack Frequency over the last 24 hours
     with col2:
         st.markdown("<h4 style='color: #8b949e; font-size: 14px; text-align: center;'>Attack Frequency (24H Timeline)</h4>", unsafe_allow_html=True)
-        df_time = pd.read_sql_query("SELECT timestamp FROM attack_logs WHERE timestamp >= datetime('now', '-1 day')", conn)
+        if user_email:
+            query = "SELECT timestamp FROM attack_logs WHERE user_email = ? AND timestamp >= datetime('now', '-1 day')"
+            df_time = pd.read_sql_query(query, conn, params=(user_email,))
+        else:
+            df_time = pd.read_sql_query("SELECT timestamp FROM attack_logs WHERE timestamp >= datetime('now', '-1 day')", conn)
         
         if not df_time.empty:
             df_time['timestamp'] = pd.to_datetime(df_time['timestamp'])
@@ -184,17 +192,21 @@ def _folium_to_html(m, height=500):
     return f'<div style="width:100%;height:{height}px;border-radius:12px;overflow:hidden;">{map_html}</div>'
 
 
-def render_global_threat_map():
+def render_global_threat_map(user_email=""):
     import folium
     from streamlit.components.v1 import html as st_html
     
     conn = get_db_connection()
     # 1. Connect to SQLite and fetch logs
-    df = pd.read_sql_query(
-        "SELECT src_ip as ip, dst_ip, attack_type, timestamp, city, country, latitude, longitude "
-        "FROM attack_logs", 
-        conn
-    )
+    if user_email:
+        query = "SELECT src_ip as ip, dst_ip, attack_type, timestamp, city, country, latitude, longitude FROM attack_logs WHERE user_email = ?"
+        df = pd.read_sql_query(query, conn, params=(user_email,))
+    else:
+        df = pd.read_sql_query(
+            "SELECT src_ip as ip, dst_ip, attack_type, timestamp, city, country, latitude, longitude "
+            "FROM attack_logs", 
+            conn
+        )
     
     # 2. Filter out any rows where lat/lon is None or 0
     df = df.dropna(subset=['latitude', 'longitude'])
@@ -312,13 +324,19 @@ def render_global_threat_map():
     # 5. Render map as static HTML component (prevents iframe re-mounting on reruns)
     st_html(_folium_to_html(m, height=500), height=520)
 
-def render_top_countries():
+def render_top_countries(user_email=""):
     conn = get_db_connection()
-    df = pd.read_sql_query(
-        "SELECT country, COUNT(*) as count FROM attack_logs "
-        "WHERE country != 'Local' AND country IS NOT NULL AND country != 'Unknown Country' "
-        "GROUP BY country ORDER BY count DESC LIMIT 5", conn
-    )
+    if user_email:
+        query = ("SELECT country, COUNT(*) as count FROM attack_logs "
+                 "WHERE user_email = ? AND country != 'Local' AND country IS NOT NULL AND country != 'Unknown Country' "
+                 "GROUP BY country ORDER BY count DESC LIMIT 5")
+        df = pd.read_sql_query(query, conn, params=(user_email,))
+    else:
+        df = pd.read_sql_query(
+            "SELECT country, COUNT(*) as count FROM attack_logs "
+            "WHERE country != 'Local' AND country IS NOT NULL AND country != 'Unknown Country' "
+            "GROUP BY country ORDER BY count DESC LIMIT 5", conn
+        )
     
     if not df.empty:
         # Standard Plotly horizontal bar char

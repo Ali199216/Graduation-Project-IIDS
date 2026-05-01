@@ -4,6 +4,7 @@ Each tool wraps ML model functionality and data operations.
 Includes: analysis, alerts, IP blocking, statistics, and attack info.
 """
 import json
+import streamlit as st
 import pandas as pd
 import numpy as np
 import sys
@@ -185,7 +186,8 @@ def analyze_flow(
         result["alert_id"] = alert["id"]
 
         # Check if IP is already blocked
-        blocked_ips = db_utils.get_blocked_ips_db()
+        _u_email = st.session_state.get('user_email', '')
+        blocked_ips = db_utils.get_blocked_ips_db(user_email=_u_email)
         if src_ip in blocked_ips:
             result["ip_status"] = f"IP {src_ip} is ALREADY BLOCKED"
         else:
@@ -203,7 +205,8 @@ def block_ip(ip_address: str) -> str:
     - ip_address: The IP address to block
     """
     ip_address = ip_address.strip()
-    blocked_ips = db_utils.get_blocked_ips_db()
+    _u_email = st.session_state.get('user_email', '')
+    blocked_ips = db_utils.get_blocked_ips_db(user_email=_u_email)
 
     if ip_address in blocked_ips:
         return json.dumps({
@@ -212,8 +215,8 @@ def block_ip(ip_address: str) -> str:
             "total_blocked": len(blocked_ips),
         })
 
-    db_utils.block_ip_db(ip_address)
-    blocked_ips = db_utils.get_blocked_ips_db()
+    db_utils.block_ip_db(ip_address, user_email=_u_email)
+    blocked_ips = db_utils.get_blocked_ips_db(user_email=_u_email)
 
     return json.dumps({
         "status": "blocked",
@@ -231,7 +234,8 @@ def unblock_ip(ip_address: str) -> str:
     - ip_address: The IP address to unblock
     """
     ip_address = ip_address.strip()
-    blocked_ips = db_utils.get_blocked_ips_db()
+    _u_email = st.session_state.get('user_email', '')
+    blocked_ips = db_utils.get_blocked_ips_db(user_email=_u_email)
 
     if ip_address not in blocked_ips:
         return json.dumps({
@@ -239,8 +243,8 @@ def unblock_ip(ip_address: str) -> str:
             "message": f"IP {ip_address} is not in the block list.",
         })
 
-    db_utils.unblock_ip_db(ip_address)
-    blocked_ips = db_utils.get_blocked_ips_db()
+    db_utils.unblock_ip_db(ip_address, user_email=_u_email)
+    blocked_ips = db_utils.get_blocked_ips_db(user_email=_u_email)
 
     return json.dumps({
         "status": "unblocked",
@@ -254,7 +258,8 @@ def get_blocked_ips_list() -> str:
     """Get the current list of all blocked IP addresses.
     Returns the full block list with count.
     """
-    blocked_ips = db_utils.get_blocked_ips_db()
+    _u_email = st.session_state.get('user_email', '')
+    blocked_ips = db_utils.get_blocked_ips_db(user_email=_u_email)
     return json.dumps({
         "total_blocked": len(blocked_ips),
         "blocked_ips": list(blocked_ips),
@@ -266,8 +271,9 @@ def get_alerts_list() -> str:
     """Get all security alerts that have been triggered.
     Returns the full alert history with timestamps, severity, and details.
     """
-    alerts_list = db_utils.get_all_logs()
-    active_count = db_utils.get_active_logs_count()
+    _u_email = st.session_state.get('user_email', '')
+    alerts_list = db_utils.get_all_logs(user_email=_u_email)
+    active_count = db_utils.get_active_logs_count(user_email=_u_email)
     return json.dumps({
         "total_alerts": len(alerts_list),
         "active_alerts": active_count,
