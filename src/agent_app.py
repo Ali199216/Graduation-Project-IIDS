@@ -1,4 +1,4 @@
-﻿"""
+"""
 Intelligent Intrusion Detection System (IIDS) - Dashboard
 Dashboard + Chat + Manual Analysis with Alerts & IP Blocking
 """
@@ -9,6 +9,7 @@ import sys
 import os
 import numpy as np
 import datetime
+import textwrap
 from pathlib import Path
 
 # Setup path
@@ -38,6 +39,213 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ---- GLOBAL TACTICAL STYLING (The Elite UI Foundation) ----
+st.markdown("""
+<style>
+    /* Obsidian Black & Neon Cyan Core Theme */
+    .stApp {
+        background-image: url('file/c:/Users/ELZAHBIA/GRADUATION/ali_pro-main/network_intrusion_agent_v2/assets/shield_bg.png');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }
+    
+    /* Center the layout to 1200px for a balanced dashboard feel */
+    .block-container {
+        max-width: 1200px;
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        margin: 0 auto;
+    }
+
+    /* Standard Card Styling */
+    .dad-card {
+        background: #000000 !important;
+        border: 2px solid rgba(0, 212, 255, 0.3);
+        border-radius: 15px;
+        padding: 30px;
+        box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+        margin-bottom: 30px;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        overflow: hidden !important;
+    }
+    .dad-card:hover {
+        transform: scale(1.02);
+        box-shadow: 0 0 40px rgba(0, 212, 255, 0.4);
+    }
+
+    /* CUSTOM NEON SCROLLBAR */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+        background: rgba(255,255,255,0.02);
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #00D4FF;
+        border-radius: 10px;
+        box-shadow: 0 0 10px #00D4FF;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #FFFFFF;
+    }
+
+    /* HIDE Streamlit's ugly file uploader info */
+    [data-testid="stFileUploader"] section {
+        background: rgba(255,255,255,0.02) !important;
+        border: 1px dashed rgba(0,212,255,0.2) !important;
+        padding: 5px !important;
+    }
+    [data-testid="stFileUploader"] label, 
+    [data-testid="stFileUploader"] small {
+        display: none !important;
+    }
+    [data-testid="stFileUploaderDeleteBtn"] {
+        display: none !important;
+    }
+
+    /* 17. Analytical Requirements Module */
+    .analytical-card {
+        background: rgba(0, 212, 255, 0.03) !important;
+        border: 1px solid rgba(0, 212, 255, 0.2) !important;
+        border-radius: 12px !important;
+        padding: 20px !important;
+        margin: 20px 0 !important;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+        cursor: help !important;
+        text-align: left !important;
+        font-family: 'Roboto Mono', monospace !important;
+        color: #E0E0E0 !important;
+        font-size: 13px !important;
+    }
+    .analytical-card:hover {
+        transform: translateY(-8px) scale(1.02) !important;
+        border-color: #00D4FF !important;
+        background: rgba(0, 212, 255, 0.08) !important;
+        box-shadow: 0 15px 45px rgba(0, 212, 255, 0.2) !important;
+    }
+    .analytical-card b {
+        color: #00D4FF !important;
+        letter-spacing: 1px !important;
+        text-transform: uppercase !important;
+    }
+    .analytical-card code {
+        background: rgba(0, 212, 255, 0.1) !important;
+        color: #FFFFFF !important;
+        padding: 2px 6px !important;
+        border-radius: 4px !important;
+        font-family: 'Roboto Mono', monospace !important;
+        font-size: 13px !important;
+        margin: 2px !important;
+        display: inline-block !important;
+        border: 1px solid rgba(0, 212, 255, 0.2) !important;
+    }
+
+    /* 18. Tactical Table Styling (The Final Form) */
+    .tactical-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-family: 'Roboto Mono', monospace !important;
+        font-size: 13px !important;
+        margin-top: 10px !important;
+        border: 1px solid rgba(0, 212, 255, 0.15) !important;
+        background: rgba(0, 0, 0, 0.4) !important;
+    }
+    .tactical-table th {
+        background: rgba(0, 212, 255, 0.15) !important;
+        color: #00D4FF !important;
+        padding: 15px !important;
+        text-align: left !important;
+        font-weight: 900 !important;
+        letter-spacing: 1.5px !important;
+        text-transform: uppercase !important;
+        border-bottom: 2px solid #00D4FF !important;
+        text-shadow: 0 0 10px rgba(0, 212, 255, 0.5) !important;
+    }
+    .tactical-table td {
+        padding: 12px 15px !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.03) !important;
+        color: #E0E0E0 !important;
+        transition: all 0.3s ease !important;
+    }
+    .tactical-table tr:nth-child(even) {
+        background: rgba(255, 255, 255, 0.02) !important;
+    }
+    .tactical-table tr:hover td {
+        background: rgba(0, 212, 255, 0.08) !important;
+        color: #FFFFFF !important;
+        box-shadow: inset 0 0 15px rgba(0, 212, 255, 0.15) !important;
+    }
+
+    /* 21. Tactical Selectbox Styling */
+    div[data-testid="stSelectbox"] > div[data-baseweb="select"] > div {
+        background-color: rgba(0, 212, 255, 0.03) !important;
+        border: 1px solid rgba(0, 212, 255, 0.3) !important;
+        border-radius: 8px !important;
+        color: #00D4FF !important;
+        font-family: 'Roboto Mono', monospace !important;
+    }
+    div[data-testid="stSelectbox"] label p {
+        color: #00D4FF !important;
+        font-family: 'Orbitron', sans-serif !important;
+        font-weight: 900 !important;
+        letter-spacing: 1px !important;
+    }
+
+    /* 20. Tactical Terminal Log Styling */
+    .tactical-log {
+        background: #050505 !important;
+        border: 1px solid #1a1a1a !important;
+        border-radius: 8px !important;
+        padding: 15px !important;
+        height: 400px !important;
+        overflow-y: auto !important;
+        font-family: 'Roboto Mono', monospace !important;
+        font-size: 11px !important;
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.8) !important;
+        color: #8b949e !important;
+        line-height: 1.5 !important;
+    }
+    .log-info { color: #00D4FF !important; }
+    .log-success { color: #00FF41 !important; font-weight: bold !important; }
+    .log-warning { color: #f2cc60 !important; }
+    .log-error { color: #FF4B4B !important; font-weight: bold !important; }
+
+    /* 19. Tactical Button Styling (Download & Upload) */
+    div[data-testid="stDownloadButton"] button,
+    div[data-testid="stFileUploader"] button {
+        background-color: rgba(0, 212, 255, 0.05) !important;
+        border: 2px solid #00D4FF !important;
+        color: #00D4FF !important;
+        font-family: 'Orbitron', sans-serif !important;
+        font-weight: 900 !important;
+        letter-spacing: 1.5px !important;
+        text-transform: uppercase !important;
+        border-radius: 8px !important;
+        padding: 10px 24px !important;
+        transition: all 0.3s ease !important;
+        width: 100% !important;
+    }
+    div[data-testid="stDownloadButton"] button:hover,
+    div[data-testid="stFileUploader"] button:hover {
+        background-color: #00D4FF !important;
+        color: #000000 !important;
+        box-shadow: 0 0 20px #00D4FF !important;
+        transform: scale(1.02) !important;
+    }
+    div[data-testid="stFileUploader"] section {
+        border: 1px dashed rgba(0, 212, 255, 0.4) !important;
+        border-radius: 12px !important;
+        background: rgba(0, 212, 255, 0.02) !important;
+    }
+    div[data-testid="stFileUploader"] [data-testid="stMarkdownContainer"] p {
+        color: #8b949e !important;
+        font-family: 'Roboto Mono', monospace !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # ---- Initialization ----
 if "app_launched" not in st.session_state:
     st.session_state.app_launched = False
@@ -50,8 +258,31 @@ if "blocked_ips" not in st.session_state:
 
 # ---- GLOBAL SIDEBAR (Hidden until Authenticated) ----
 if st.session_state.get('authenticated', False):
-    st.sidebar.markdown('<div class="sidebar-header-clean">IIDS SYSTEM</div>', unsafe_allow_html=True)
     with st.sidebar:
+        # 2. Sidebar Identity Header (Persistent Branding)
+        user = st.session_state.get('current_user', {})
+        user_name = user.get('full_name', 'OPERATOR')
+        company = user.get('company_name', 'IIDS INTERNAL')
+        profile_img = st.session_state.get('profile_pic')
+        
+        # PERSISTENT BRANDING: Fallback to high-end Neon Cyan User Icon
+        if profile_img:
+            avatar_html = f'background-image: url("data:image/png;base64,{profile_img}");'
+        else:
+            avatar_html = 'background: rgba(0,212,255,0.1); border: 2px solid #00D4FF; display: flex; align-items: center; justify-content: center;'
+            avatar_content = '<div style="color: #00D4FF; font-weight: 900; font-family: \'Orbitron\'; font-size: 16px;">U</div>'
+        
+        st.markdown(f"""
+        <div class="sidebar-id-block">
+            <div class="sidebar-avatar" style='{avatar_html}'>{"" if profile_img else avatar_content}</div>
+            <div class="sidebar-info">
+                <div class="sidebar-name">{user_name.upper()}</div>
+                <div class="sidebar-company">{company.upper()}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('<div class="sidebar-header-clean">IIDS SYSTEM</div>', unsafe_allow_html=True)
         st.markdown('<div class="sidebar-header-clean">ENGINE CONTROLS</div>', unsafe_allow_html=True)
         if st.button('RUN REAL-TIME DETECTION', key='btn_run', use_container_width=True):
             st.session_state.is_running = True
@@ -90,11 +321,23 @@ if st.session_state.get('authenticated', False):
                 st.session_state.show_block_registry = False
                 st.rerun()
         
-        st.markdown('<div class="sidebar-header-clean">SESSION HISTORY</div>', unsafe_allow_html=True)
         
-        # 🔴 Return to Live Mode Button (Visible when viewing history)
+        st.markdown('<div class="sidebar-header-clean">USER SETTINGS</div>', unsafe_allow_html=True)
+        if st.button('ACCOUNT PROFILE', key='btn_acc_prof', use_container_width=True):
+            st.session_state.current_page = "profile"
+            st.rerun()
+        
+        if st.session_state.get('current_page') == "profile":
+            if st.button('RETURN TO DASHBOARD', key='btn_ret_dash_prof', use_container_width=True):
+                st.session_state.current_page = "dashboard"
+                st.rerun()
+
+        st.markdown('<div class="sidebar-header-clean">SESSION HISTORY</div>', unsafe_allow_html=True)
+
+        
+        #  Return to Live Mode Button (Visible when viewing history)
         if st.session_state.get('viewing_history', False):
-            if st.button('🔴 EXIT HISTORY & GO LIVE', key='btn_exit_hist', use_container_width=True):
+            if st.button(' EXIT HISTORY & GO LIVE', key='btn_exit_hist', use_container_width=True):
                 st.session_state.viewing_history = False
                 st.session_state.historical_playback = False
                 st.rerun()
@@ -121,8 +364,8 @@ def get_base64_img(path):
         data = f.read()
     return base64.b64encode(data).decode()
 
-# New Branded Shield Path
-SHIELD_PATH = r"C:\Users\ELZAHBIA\.gemini\antigravity\brain\8cde749e-70bf-4bf4-b060-0690f6f1f85d\iids_security_shield_bg_1777645279930.png"
+# New Branded Shield Path (Fixed for portability)
+SHIELD_PATH = Path(__file__).resolve().parent.parent / "images" / "iids_shield.png"
 shield_base64 = ""
 try:
     shield_base64 = get_base64_img(SHIELD_PATH)
@@ -177,35 +420,98 @@ st.markdown(f"""
         z-index: 0;
     }}
 
-    /* 2. Mandatory Full-Width Force (95% Panoramic) */
+    
+    /* 2. Elite Centering (1200px Balanced View) */
     div.block-container {{
-        max-width: 95% !important;
-        width: 95% !important;
+        max-width: 1200px !important;
+        width: 100% !important;
         margin: 0 auto !important;
         padding: 5rem 1rem !important;
         background: transparent !important;
     }}
-    .stAppViewMain {{
-        background: transparent !important;
-    }}
 
-    /* Sidebar Toggle - Moved to Authenticated Section to prevent early appearance */
-
-    /* Pulse Title */
+    /* Pulse Headers with Pure White and Neon Cyan Breathing Glow */
     @keyframes glowPulse {{
-        0% {{ text-shadow: 0 0 10px #00D4FF; opacity: 0.8; }}
-        50% {{ text-shadow: 0 0 30px #00D4FF, 0 0 60px rgba(0, 212, 255, 0.5); opacity: 1; }}
-        100% {{ text-shadow: 0 0 10px #00D4FF; opacity: 0.8; }}
+        0% {{ text-shadow: 0 0 10px #00D4FF; opacity: 0.9; color: #FFFFFF; }}
+        50% {{ text-shadow: 0 0 30px #00D4FF, 0 0 50px rgba(0, 212, 255, 0.6); opacity: 1; color: #FFFFFF; }}
+        100% {{ text-shadow: 0 0 10px #00D4FF; opacity: 0.9; color: #FFFFFF; }}
     }}
-    h1 {{ 
+    h1, h2, h3, h4, h5, h6 {{ 
         color: #FFFFFF !important; 
         font-family: 'Orbitron', sans-serif !important; 
         font-weight: 900 !important; 
         text-transform: uppercase;
         animation: glowPulse 4s ease-in-out infinite;
         text-align: center;
-        letter-spacing: 6px;
+        letter-spacing: 4px;
     }}
+
+    /* Neon Breathing Section Titles */
+    .section-title {{
+        color: #FFFFFF !important;
+        font-family: 'Orbitron', sans-serif !important;
+        font-weight: 900 !important;
+        text-transform: uppercase;
+        letter-spacing: 3px;
+        animation: glowPulse 5s ease-in-out infinite;
+        margin-bottom: 20px;
+        border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+        padding-bottom: 10px;
+    }}
+
+    /* Elite Interactive Hover FX (Scale & Glow) */
+    [data-testid="stMetric"], .stButton>button:hover, .cyber-card:hover, .dad-card:hover, tr:hover, .sidebar-id-block:hover {{
+        transform: translateY(-5px) scale(1.02) !important;
+        box-shadow: 0 0 30px rgba(0, 212, 255, 0.6) !important;
+        transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+        border-color: #00D4FF !important;
+    }}
+
+    /* Sidebar Identity Styling */
+    .sidebar-id-block {{
+        padding: 15px;
+        background: rgba(0, 212, 255, 0.03);
+        border: 1px solid rgba(0, 212, 255, 0.1);
+        border-radius: 12px;
+        margin-bottom: 25px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }}
+    .sidebar-avatar {{
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        border: 2px solid #00D4FF;
+        background-size: cover;
+        background-position: center;
+        box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+    }}
+    .sidebar-info {{
+        display: flex;
+        flex-direction: column;
+    }}
+    .sidebar-name {{
+        color: #FFFFFF !important;
+        font-family: 'Orbitron', sans-serif !important;
+        font-weight: 900 !important;
+        font-size: 11px !important;
+        letter-spacing: 1px;
+    }}
+    .sidebar-company {{
+        color: #00D4FF !important;
+        font-size: 9px !important;
+        font-weight: 700 !important;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }}
+    .stAppViewMain {{
+        background: transparent !important;
+    }}
+
+    /* Sidebar Toggle - Moved to Authenticated Section to prevent early appearance */
 
     /* 5. Interactive Hover Effects */
     [data-testid="stSidebar"] button, .stButton button {{
@@ -507,19 +813,19 @@ if not st.session_state.app_launched:
 
 
 
-# ── XAI Reasoning Engine ──
+#  XAI Reasoning Engine 
 def get_classification_reason(attack_type, features=None):
     """Return a concise, technical explanation for the given attack classification."""
     _reasons = {
         "DoS": "Classified as **DoS** due to abnormal spike in packet frequency (`IN_PKTS: {in_pkts}`, `OUT_PKTS: {out_pkts}`) and excessive byte volume (`IN_BYTES: {in_bytes}`), indicating resource exhaustion flooding patterns.",
         "Reconnaissance": "Detected as **Reconnaissance** based on sequential port-scanning signatures (`L4_DST_PORT: {dst_port}`) with low payload volume (`IN_BYTES: {in_bytes}`) and short flow duration (`FLOW_DURATION: {flow_dur}ms`), consistent with network discovery probes.",
-        "Exploits": "Classified as **Exploits** — anomalous TCP flag combinations (`TCP_FLAGS: {tcp_flags}`) with elevated throughput (`SRC→DST: {src_tput}`) suggest active exploitation of known vulnerabilities.",
-        "Generic": "Flagged as **Generic** attack — combined indicators across multiple vectors: unusual TTL range (`MIN_TTL: {min_ttl}` → `MAX_TTL: {max_ttl}`) and atypical packet-length distribution suggest multi-technique abuse.",
-        "Shellcode": "Identified as **Shellcode** injection — small, high-entropy payloads (`SHORTEST_PKT: {short_pkt}`, `LONGEST_PKT: {long_pkt}`) with minimal flow duration indicate executable code delivery to target memory.",
-        "Fuzzers": "Classified as **Fuzzers** — randomized input patterns with variable packet sizes (`MIN_IP_PKT_LEN: {min_ip}` → `MAX_IP_PKT_LEN: {max_ip}`) and irregular byte ratios suggest automated vulnerability probing.",
-        "Worms": "Detected as **Worms** — self-replicating traffic pattern with high outbound packets (`OUT_PKTS: {out_pkts}`) and lateral spread indicators across destination ports (`L4_DST_PORT: {dst_port}`).",
-        "Backdoor": "Flagged as **Backdoor** — persistent low-volume connection (`IN_BYTES: {in_bytes}`, `OUT_BYTES: {out_bytes}`) with long flow duration (`FLOW_DURATION: {flow_dur}ms`) suggests covert C2 channel establishment.",
-        "Analysis": "Classified as **Analysis** — deep packet inspection signatures with elevated DNS activity (`DNS_QUERY_ID: {dns_qid}`) and traffic analysis patterns indicating credential or data extraction attempts.",
+        "Exploits": "Classified as **Exploits**  anomalous TCP flag combinations (`TCP_FLAGS: {tcp_flags}`) with elevated throughput (`SRCDST: {src_tput}`) suggest active exploitation of known vulnerabilities.",
+        "Generic": "Flagged as **Generic** attack  combined indicators across multiple vectors: unusual TTL range (`MIN_TTL: {min_ttl}`  `MAX_TTL: {max_ttl}`) and atypical packet-length distribution suggest multi-technique abuse.",
+        "Shellcode": "Identified as **Shellcode** injection  small, high-entropy payloads (`SHORTEST_PKT: {short_pkt}`, `LONGEST_PKT: {long_pkt}`) with minimal flow duration indicate executable code delivery to target memory.",
+        "Fuzzers": "Classified as **Fuzzers**  randomized input patterns with variable packet sizes (`MIN_IP_PKT_LEN: {min_ip}`  `MAX_IP_PKT_LEN: {max_ip}`) and irregular byte ratios suggest automated vulnerability probing.",
+        "Worms": "Detected as **Worms**  self-replicating traffic pattern with high outbound packets (`OUT_PKTS: {out_pkts}`) and lateral spread indicators across destination ports (`L4_DST_PORT: {dst_port}`).",
+        "Backdoor": "Flagged as **Backdoor**  persistent low-volume connection (`IN_BYTES: {in_bytes}`, `OUT_BYTES: {out_bytes}`) with long flow duration (`FLOW_DURATION: {flow_dur}ms`) suggests covert C2 channel establishment.",
+        "Analysis": "Classified as **Analysis**  deep packet inspection signatures with elevated DNS activity (`DNS_QUERY_ID: {dns_qid}`) and traffic analysis patterns indicating credential or data extraction attempts.",
     }
     template = _reasons.get(attack_type, "Attack detected based on combined anomalous network signatures across multiple feature vectors.")
     
@@ -571,12 +877,12 @@ def render_xai_insight_card(alerts):
     for atk, cnt in attack_counts.most_common(5):
         if atk != top_attack:
             pct = (cnt / len(alerts)) * 100
-            secondary_lines += f'<div style="color: #c9d1d9; font-size: 13px; margin-top: 6px;">• <strong>{atk}</strong> — {cnt} detections ({pct:.1f}%)</div>'
+            secondary_lines += f'<div style="color: #c9d1d9; font-size: 13px; margin-top: 6px;"> <strong>{atk}</strong>  {cnt} detections ({pct:.1f}%)</div>'
 
     st.markdown(f"""
     <div class="xai-insight-card">
         <div class="xai-header">
-            <span class="xai-icon">🧠</span> AI Decision Insight
+            <span class="xai-icon"></span> AI Decision Insight
         </div>
         <div class="xai-primary-label">Primary Threat Classification</div>
         <div class="xai-attack-name">{top_attack}</div>
@@ -600,15 +906,15 @@ def show_alert_card(alert):
     """Generate the inner HTML for a well-spaced, highly readable alert card."""
     severity = alert.get("severity", "NORMAL").upper()
     if severity == "CRITICAL":
-        icon = "🚨"
+        icon = ""
         css_class = "alert-CRITICAL"
         title_color = "#ff4d4d"
     elif severity == "HIGH":
-        icon = "⚠️"
+        icon = ""
         css_class = "alert-HIGH"
         title_color = "#f2cc60"
     else:
-        icon = "ℹ️"
+        icon = ""
         css_class = "alert-NORMAL"
         title_color = "#58a6ff"
 
@@ -618,7 +924,7 @@ def show_alert_card(alert):
             {icon} {severity} &nbsp;|&nbsp; {alert['attack_type']}
         </div>
         <div style="font-size: 16px; color: #e6edf3; margin-bottom: 12px;">
-            <strong>Src:</strong> <code>{alert['src_ip']}</code> &nbsp;➔&nbsp; <strong>Dst:</strong> <code>{alert['dst_ip']}</code>
+            <strong>Src:</strong> <code>{alert['src_ip']}</code> &nbsp;&nbsp; <strong>Dst:</strong> <code>{alert['dst_ip']}</code>
         </div>
         <div style="display: flex; gap: 30px; font-size: 15px; color: #8b949e; margin-bottom: 14px;">
             <div>Anomaly Score: <strong style="color: #e6edf3;">{alert.get('anomaly_score', 0):.4f}</strong></div>
@@ -782,6 +1088,7 @@ if not st.session_state.authenticated:
                             st.session_state.current_page = "dashboard"
                             st.session_state.current_user = user_data
                             st.session_state.user_email = login_email
+                            st.session_state.profile_pic = user_data.get('profile_pic')
                             st.rerun()
                         else:
                             st.error("Invalid email or password.")
@@ -829,85 +1136,63 @@ if not st.session_state.authenticated:
 
     st.stop() # Halt execution if not authenticated
 
-# ---- Inject Authenticated-Only Sidebar Styling (ULTIMATE FIX) ----
+# ---- End of Global Styles ----
+
+# ---- Inject Authenticated-Only MENU (ULTIMATE FIX) ----
 if st.session_state.get('authenticated', False):
     st.markdown("""
     <style>
-        @keyframes strobe-white {
-            0% { box-shadow: 0 0 20px #FFFFFF, 0 0 40px #FFFFFF; }
-            50% { box-shadow: 0 0 50px #FFFFFF, 0 0 100px #FFFFFF; }
-            100% { box-shadow: 0 0 20px #FFFFFF, 0 0 40px #FFFFFF; }
+        /* HIDE SYSTEM BUTTONS */
+        header [data-testid="stDeployButton"],
+        header [data-testid="stBaseButton-header"],
+        header button[aria-label*="Deploy"],
+        header button[aria-label*="Menu"] {
+            display: none !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
         }
 
-        /* Target ONLY the first button in the header (Left Side Toggle) */
-        header button:first-of-type,
-        button[data-testid="stSidebarCollapseAction"] {
+        /* THE SMALL WHITE SQUARE MENU BUTTON */
+        header button[data-testid="stSidebarCollapseAction"],
+        header button[aria-label*="sidebar"],
+        header button:first-of-type {
             background-color: #FFFFFF !important;
+            color: #000000 !important;
             border: 2px solid #000000 !important;
-            border-radius: 50% !important;
-            animation: strobe-white 1.5s infinite ease-in-out !important;
+            border-radius: 4px !important;
+            position: fixed !important;
+            left: 20px !important;
+            top: 20px !important;
+            z-index: 9999999 !important;
             width: 70px !important;
-            height: 70px !important;
+            height: 35px !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            z-index: 1000000 !important;
-            visibility: visible !important;
-            opacity: 1 !important;
             cursor: pointer !important;
-            margin-left: 10px !important;
-            margin-top: 10px !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            font-size: 0 !important;
         }
 
-        /* RESET the right-side button (Last button in header) if it accidentally gets styled */
-        header button:last-of-type:not(:first-of-type) {
-            background-color: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            animation: none !important;
-            width: auto !important;
-            height: auto !important;
-        }
-        header button:last-of-type:not(:first-of-type)::after {
-            content: "" !important;
-        }
-        header button:last-of-type:not(:first-of-type) svg {
-            display: block !important;
-        }
-
-        header button:first-of-type::after,
-        button[data-testid="stSidebarCollapseAction"]::after {
+        header button[data-testid="stSidebarCollapseAction"]::after,
+        header button[aria-label*="sidebar"]::after,
+        header button:first-of-type::after {
             content: "MENU" !important;
             color: #000000 !important;
-            font-family: 'Orbitron', sans-serif !important;
-            font-size: 13px !important;
+            font-family: 'Arial', sans-serif !important;
             font-weight: 900 !important;
-            display: block !important;
+            font-size: 14px !important;
+            letter-spacing: 1px !important;
             visibility: visible !important;
+            display: block !important;
         }
 
-        header button:first-of-type svg,
-        button[data-testid="stSidebarCollapseAction"] svg {
+        header button[data-testid="stSidebarCollapseAction"] svg,
+        header button[aria-label*="sidebar"] svg,
+        header button:first-of-type svg {
             display: none !important;
         }
-
-        /* 16. Modal Styling (For Clarity & Consistency) */
-        div[data-testid="stModal"] {
-            background-color: #0a0a0a !important;
-            border: 1px solid #00D4FF !important;
-            border-radius: 15px !important;
-            box-shadow: 0 0 50px rgba(0, 212, 255, 0.3) !important;
-        }
-        div[data-testid="stModal"] * {
-            color: #FFFFFF !important;
-            font-family: 'Roboto Mono', monospace !important;
-        }
-        div[data-testid="stModal"] h1, div[data-testid="stModal"] h2, div[data-testid="stModal"] h3 {
-            color: #00D4FF !important;
-            font-family: 'Orbitron', sans-serif !important;
-        }
-
-        header { overflow: visible !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -958,8 +1243,193 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+def render_user_profile_page():
+    """Render the Elite User Intelligence Dossier - 95% Panoramic View."""
+    st.markdown('<div style="margin-top: 50px;"></div>', unsafe_allow_html=True)
+    
+    user = st.session_state.get('current_user', {})
+    user_email = st.session_state.get('user_email', 'unknown@iids.internal')
+    
+    # Header: Elite Personnel Dossier
+    st.markdown(f"""
+    <div style="border-left: 8px solid #00D4FF; padding-left: 30px; margin-bottom: 50px;">
+        <h1 style="text-align: left; margin: 0; font-size: 48px; letter-spacing: 5px;">PERSONNEL DOSSIER: {user.get('full_name', 'UNKNOWN').upper()}</h1>
+        <p style="color: #00D4FF; letter-spacing: 4px; font-weight: 900; font-family: 'Orbitron'; font-size: 14px;">STATUS: ACTIVE DUTY | CLEARANCE: TOP SECRET | UNIT: {user.get('company_name', 'IIDS INTERNAL').upper()}</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    c1, c2 = st.columns([1, 3])
+    
+    with c1:
+        # Build the Profile Card (Column-Zero HTML)
+        profile_img = st.session_state.get('profile_pic')
+        avatar_html = f'<div style="width: 220px; height: 220px; border-radius: 50%; border: 4px solid #00D4FF; background-image: url(\'data:image/png;base64,{profile_img}\'); background-size: cover; background-position: center; box-shadow: 0 0 40px rgba(0, 212, 255, 0.5);"></div>' if profile_img else '<div style="width: 220px; height: 220px; border-radius: 50%; border: 4px dashed rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.2); font-size: 30px; font-family: \'Orbitron\';">NO SIGNAL</div>'
+        
+        st.markdown(f"""
+<div class="dad-card" style="text-align: center; min-height: 520px; display: flex; flex-direction: column; justify-content: space-between;">
+<div>
+<div style="font-size: 14px; color: #00D4FF; font-weight: 900; margin-bottom: 20px; font-family: 'Orbitron'; letter-spacing: 2px;">IDENTIFICATION UNIT</div>
+<div style="display: flex; justify-content: center; margin-bottom: 20px;">
+{avatar_html}
+</div>
+</div>
+""", unsafe_allow_html=True)
+        
+        # File uploader (Streamlit component - now with hidden labels)
+        uploaded_file = st.file_uploader("UPLOAD", type=['png', 'jpg', 'jpeg'], key="prof_upload_ctrl")
+        if uploaded_file:
+            import base64
+            img_b64 = base64.b64encode(uploaded_file.read()).decode()
+            st.session_state.profile_pic = img_b64
+            db_utils.update_user_profile_pic(user_email, img_b64)
+            st.rerun()
+            
+        st.markdown(f"""
+<div style="margin-top: 10px;">
+<p style="font-weight: 900; color: #FFFFFF; text-shadow: 0 0 10px #00D4FF; font-size: 13px; font-family: 'Orbitron';">PHOTO UPLOAD READY</p>
+</div>
+<div style="background: rgba(0,212,255,0.03); padding: 20px; border-radius: 12px; margin-top: 20px; border: 1px solid rgba(0,212,255,0.1); text-align: left;">
+<div style="font-size: 10px; color: #00D4FF; font-weight: 900; letter-spacing: 2px;">PERSONNEL EMAIL</div>
+<div style="font-family: 'Roboto Mono'; color: #FFFFFF; font-size: 13px; margin-bottom: 15px;">{user_email}</div>
+<div style="font-size: 10px; color: #00D4FF; font-weight: 900; letter-spacing: 2px;">OPERATIONAL BASE</div>
+<div style="font-family: 'Roboto Mono'; color: #FFFFFF; font-size: 13px;">{user.get('company_name', 'IIDS INTERNAL').upper()}</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
+        
+    with c2:
+        sessions = db_utils.get_sessions(user_email)
+        blocked_detailed = db_utils.get_blocked_ips_detailed()
+        
+        # The 3-Column Intelligence Table (Final Internal Alignment)
+        
+        # The 3-Column Intelligence Table (STRICT INTERNAL NESTING FIX)
+        hist_col1, hist_col2, hist_col3 = st.columns(3)
+        
+        # Column 1: DATA VAULT
+        with hist_col1:
+            vault_html = f"""
+<div class="dad-card" style="min-height: 500px; display: flex; flex-direction: column;">
+<div style="font-size: 16px; color: #00D4FF; font-weight: 900; margin-bottom: 12px; text-align: center; font-family: 'Orbitron'; letter-spacing: 2px;">DATA VAULT</div>
+<div style="height: 2px; background: linear-gradient(90deg, transparent, #00D4FF, transparent); margin-bottom: 20px; box-shadow: 0 0 10px #00D4FF;"></div>
+<div style="max-height: 380px; overflow-y: auto; padding-right: 5px;">
+"""
+            if sessions:
+                for s in sessions:
+                    vault_html += f"""
+<div style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.05);">
+<div style="font-size: 13px; color: #FFFFFF; font-weight: 700; font-family: 'Roboto Mono';">{s['filename']}</div>
+<div style="font-size: 10px; color: #8b949e; letter-spacing: 1px;">{s['timestamp'][:16]} | {s['total_flows']} FLOWS</div>
+</div>
+"""
+            else:
+                vault_html += '<div style="text-align: center; color: #8b949e; margin-top: 100px; font-family: \'Roboto Mono\'; font-size: 12px;">NO DATA RECORDED</div>'
+            
+            vault_html += "</div></div>"
+            st.markdown(vault_html, unsafe_allow_html=True)
+                
+        # Column 2: THREAT LOG
+        with hist_col2:
+            import json
+            attack_freq = {}
+            for s in sessions:
+                dist_str = s.get('attack_distribution', '{}')
+                try:
+                    dist = json.loads(dist_str) if dist_str and dist_str.startswith('{') else {}
+                    for atk, count in dist.items():
+                        attack_freq[atk] = attack_freq.get(atk, 0) + count
+                except: pass
+            
+            threat_html = f"""
+<div class="dad-card" style="min-height: 500px; display: flex; flex-direction: column;">
+<div style="font-size: 16px; color: #FF3131; font-weight: 900; margin-bottom: 12px; text-align: center; font-family: 'Orbitron'; letter-spacing: 2px;">THREAT LOG</div>
+<div style="height: 2px; background: linear-gradient(90deg, transparent, #FF3131, transparent); margin-bottom: 20px; box-shadow: 0 0 10px #FF3131;"></div>
+<div style="max-height: 380px; overflow-y: auto; padding-right: 5px;">
+"""
+            
+            if attack_freq:
+                sorted_atks = sorted(attack_freq.items(), key=lambda x: x[1], reverse=True)
+                for atk, freq in sorted_atks:
+                    threat_html += f"""
+<div style="background: rgba(255,49,49,0.03); padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid rgba(255,49,49,0.1);">
+<div style="font-size: 13px; color: #FFFFFF; font-weight: 700; font-family: 'Roboto Mono';">{atk}</div>
+<div style="font-size: 10px; color: #FF3131; font-weight: 900; letter-spacing: 1px;">FREQUENCY: {freq} DETECTIONS</div>
+</div>
+"""
+            else:
+                threat_html += '<div style="text-align: center; color: #8b949e; margin-top: 100px; font-family: \'Roboto Mono\'; font-size: 12px;">CLEAN PERIMETER</div>'
+            
+            threat_html += "</div></div>"
+            st.markdown(threat_html, unsafe_allow_html=True)
+                
+        # Column 3: BLOCK REGISTRY
+        with hist_col3:
+            block_html = f"""
+<div class="dad-card" style="min-height: 500px; display: flex; flex-direction: column;">
+<div style="font-size: 16px; color: #FFFF00; font-weight: 900; margin-bottom: 12px; text-align: center; font-family: 'Orbitron'; letter-spacing: 2px;">BLOCK REGISTRY</div>
+<div style="height: 2px; background: linear-gradient(90deg, transparent, #FFFF00, transparent); margin-bottom: 20px; box-shadow: 0 0 10px #FFFF00;"></div>
+<div style="max-height: 380px; overflow-y: auto; padding-right: 5px;">
+"""
+            
+            if blocked_detailed:
+                for b in blocked_detailed:
+                    block_html += f"""
+<div style="background: rgba(255,255,0,0.03); padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid rgba(255,255,0,0.1);">
+<div style="font-size: 13px; color: #FFFFFF; font-weight: 700; font-family: 'Roboto Mono';">{b['ip']}</div>
+<div style="font-size: 10px; color: #FFFF00; font-weight: 900; letter-spacing: 1px;">STATUS: PERMANENTLY BANNED</div>
+</div>
+"""
+            else:
+                block_html += '<div style="text-align: center; color: #8b949e; margin-top: 100px; font-family: \'Roboto Mono\'; font-size: 12px;">NO ACTIVE BLOCKS</div>'
+            
+            block_html += "</div></div>"
+            st.markdown(block_html, unsafe_allow_html=True)
+                
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    # Final Section: Forensic Reports (ULTIMATE CONSOLIDATED FIX)
+    st.markdown('<div style="margin-top: 30px;"></div>', unsafe_allow_html=True)
+    
+    archive_html = f"""
+<div class="dad-card">
+<div style="font-size: 20px; color: #00D4FF; font-weight: 900; margin-bottom: 25px; font-family: 'Orbitron'; letter-spacing: 3px;">INTEGRATED FORENSIC ARCHIVE</div>
+<div style="display: grid; grid-template-columns: 2fr 1.5fr 1fr 120px; padding: 15px; border-bottom: 2px solid rgba(0,212,255,0.3); color: #00D4FF; font-weight: 900; font-size: 11px; letter-spacing: 1px; margin-bottom: 10px; background: rgba(0,212,255,0.02);">
+<div>FILENAME</div>
+<div>TIMESTAMP</div>
+<div>THREAT LEVEL</div>
+<div style="text-align: center;">STATUS</div>
+</div>
+<div style="max-height: 450px; overflow-y: auto; padding-right: 10px;">
+"""
+    
+    if sessions:
+        for s in sessions:
+            severity = "CRITICAL" if s['total_threats'] > 10 else "HIGH" if s['total_threats'] > 0 else "NORMAL"
+            sev_color = "#FF3131" if severity == "CRITICAL" else "#FFFF00" if severity == "HIGH" else "#00D4FF"
+            
+            archive_html += f"""
+<div style="display: grid; grid-template-columns: 2fr 1.5fr 1fr 120px; padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: center; font-size: 13px; font-family: 'Roboto Mono'; transition: 0.3s;" onmouseover="this.style.background='rgba(0,212,255,0.08)'" onmouseout="this.style.background='transparent'">
+<div style="color: #FFFFFF; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700;">{s['filename']}</div>
+<div style="color: #8b949e; font-size: 12px;">{s['timestamp']}</div>
+<div style="color: {sev_color}; font-weight: 900; letter-spacing: 1px; font-size: 11px;">{severity}</div>
+<div style="text-align: center;">
+<span style="color: #00D4FF; border: 1px solid #00D4FF; padding: 4px 12px; border-radius: 4px; font-size: 10px; font-weight: 900; text-transform: uppercase; background: rgba(0,212,255,0.05); box-shadow: 0 0 10px rgba(0,212,255,0.1);">ENCRYPTED</span>
+</div>
+</div>
+"""
+    else:
+        archive_html += '<div style="text-align: center; color: #8b949e; padding: 50px; font-family: \'Roboto Mono\';">NO FORENSIC DATA IN ARCHIVE</div>'
+    
+    archive_html += "</div></div>"
+    st.markdown(archive_html, unsafe_allow_html=True)
+
 # ---- GLOBAL NAVIGATION ----
 tab_dashboard, tab_chat, tab_manual, tab_corporate, tab_deep_analysis = st.tabs(["Dashboard", "Chat", "Manual Analysis", "Corporate Portal", "Deep Analysis"])
+
+if st.session_state.get('current_page') == "profile":
+    render_user_profile_page()
+    st.stop()
+
 
 def render_block_registry():
     """Render the detailed forensic Block Registry with tactical row triggers."""
@@ -998,7 +1468,7 @@ def render_block_registry():
             dot_color = "#FF3131" if severity == "CRITICAL" else "#f2cc60"
             
             r1, r2, r3, r4, r5, r6 = st.columns([0.6, 2.2, 3.2, 1.3, 1.4, 1.4])
-            with r1: st.markdown(f'<div style="color: {dot_color}; font-size: 18px; padding-top: 5px;">●</div>', unsafe_allow_html=True)
+            with r1: st.markdown(f'<div style="color: {dot_color}; font-size: 18px; padding-top: 5px;"></div>', unsafe_allow_html=True)
             with r2: st.markdown(f'<div style="color: #FFFFFF; font-weight: 900; padding-top: 8px; font-size: 14px; font-family: Roboto Mono;">{ip}</div>', unsafe_allow_html=True)
             with r3: st.markdown(f'<div style="color: #c9d1d9; padding-top: 8px; font-size: 13px;">{location}</div>', unsafe_allow_html=True)
             with r4: st.markdown(f'<div style="padding-top: 5px;"><span style="color: {dot_color}; border: 1px solid {dot_color}; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 900;">{severity}</span></div>', unsafe_allow_html=True)
@@ -1025,7 +1495,7 @@ def render_block_registry():
             st.markdown("<br><hr style='border-color: rgba(0, 212, 255, 0.3);'><br>", unsafe_allow_html=True)
             st.markdown(f"""
             <div style="background: rgba(10, 10, 10, 0.95); border: 1px solid #00D4FF; border-radius: 12px; padding: 30px; box-shadow: 0 0 50px rgba(0, 212, 255, 0.2);">
-                <h2 style="color: #00D4FF; font-family: Orbitron; margin-bottom: 20px; font-size: 24px; text-shadow: 0 0 10px rgba(0,212,255,0.5);">🛡️ CONFIDENTIAL DOSSIER: {active_ip}</h2>
+                <h2 style="color: #00D4FF; font-family: Orbitron; margin-bottom: 20px; font-size: 24px; text-shadow: 0 0 10px rgba(0,212,255,0.5);"> CONFIDENTIAL DOSSIER: {active_ip}</h2>
                 <div style="height: 2px; background: linear-gradient(90deg, #00D4FF, transparent); margin-bottom: 30px;"></div>
             """, unsafe_allow_html=True)
             
@@ -1033,11 +1503,11 @@ def render_block_registry():
             with d1:
                 st.markdown(f"""
                 <div class="dossier-module">
-                    <span class="dossier-label">📍 Origin Analysis</span>
+                    <span class="dossier-label"> Origin Analysis</span>
                     <p class="dossier-text">Entity originates from <b>{entry['city']}, {entry['country']}</b>. Strategic monitoring suggests link to known high-risk autonomous systems and automated botnet clusters.</p>
                 </div>
                 <div class="dossier-module">
-                    <span class="dossier-label">📊 Threat Assessment</span>
+                    <span class="dossier-label"> Threat Assessment</span>
                     <p class="dossier-text">Permanent quarantine enforced following a <b>{entry['severity']}</b> severity breach. Malicious behavior detected: <b>{entry['attack_type']}</b> manipulation.</p>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1045,7 +1515,7 @@ def render_block_registry():
             with d2:
                 st.markdown(f"""
                 <div class="dossier-module">
-                    <span class="dossier-label">📡 Forensic Data Stream</span>
+                    <span class="dossier-label"> Forensic Data Stream</span>
                     <div class="dossier-code">EVENT_ID: {active_ip.replace('.', '_')}_DETECTION
 VECTOR: {entry['attack_type']}
 STATUS: BLOCKED_PERMANENT
@@ -1071,7 +1541,7 @@ if st.session_state.get('show_block_registry', False):
 #  TAB 1: DASHBOARD
 # ==============================
 with tab_dashboard:
-    # ── Blocklist Overlay with Attacker Profiling ──
+    #  Blocklist Overlay with Attacker Profiling 
     if st.session_state.get("show_blocklist", False):
         # CSS for blocklist + dossier
         st.markdown("""
@@ -1267,7 +1737,7 @@ with tab_dashboard:
         _profile_ip = st.session_state.get("profile_ip", None)
 
         if _profile_ip:
-            # ── DOSSIER VIEW ──
+            #  DOSSIER VIEW 
             profile = db_utils.get_attacker_profile(_profile_ip)
             if profile:
                 risk_class = f"risk-{profile['risk']}"
@@ -1312,12 +1782,12 @@ with tab_dashboard:
             else:
                 st.info(f"No attack history found for {_profile_ip}.")
 
-            if st.button("⬅️  Back to Blocklist", key="btn_back_to_blocklist", use_container_width=True):
+            if st.button("  Back to Blocklist", key="btn_back_to_blocklist", use_container_width=True):
                 st.session_state.profile_ip = None
                 st.rerun()
             st.stop()
 
-        # ── FORENSIC BLOCKLIST TABLE VIEW ──
+        #  FORENSIC BLOCKLIST TABLE VIEW 
         from geo_utils import get_country_flag
         
         st.markdown('<div class="blocklist-card">', unsafe_allow_html=True)
@@ -1335,9 +1805,9 @@ with tab_dashboard:
                     _baselines[b['ip']] = None
 
             table_html = "<table class='blocklist-table'><tr>"
-            table_html += "<th>#</th><th>🎯 Target IP</th><th>🌍 Geo-Location</th>"
-            table_html += "<th>⚔️ Attack Type</th><th>📊 Normal vs Attack</th>"
-            table_html += "<th>🔴 Status</th><th>Hits</th></tr>"
+            table_html += "<th>#</th><th> Target IP</th><th> Geo-Location</th>"
+            table_html += "<th> Attack Type</th><th> Normal vs Attack</th>"
+            table_html += "<th> Status</th><th>Hits</th></tr>"
             
             for idx, b in enumerate(blocked_details, 1):
                 sev = b.get('severity', 'N/A').upper()
@@ -1357,7 +1827,7 @@ with tab_dashboard:
                 comparison_html = (
                     f"<span class='comparison-inline'>"
                     f"<span class='tt-normal'>Normal: {normal_score}</span>"
-                    f" <span style='color:#8b949e;'>│</span> "
+                    f" <span style='color:#8b949e;'></span> "
                     f"<span class='tt-attack'>Attack: {attack_score}</span>"
                     f"</span>"
                 )
@@ -1369,7 +1839,7 @@ with tab_dashboard:
                     a = bl['attack']
                     tooltip_html = (
                         f"<div class='forensic-tooltip'>"
-                        f"<div class='tt-title'>⚡ Normal vs Attack Baseline</div>"
+                        f"<div class='tt-title'> Normal vs Attack Baseline</div>"
                         f"<div class='tt-row'><span style='color:#8b949e;'>Metric</span>"
                         f"<span class='tt-normal'>Normal</span><span class='tt-attack'>Attack</span></div>"
                         f"<div style='border-bottom:1px solid #1a1a1a; margin:4px 0;'></div>"
@@ -1402,24 +1872,24 @@ with tab_dashboard:
                 )
             table_html += "</table>"
             st.markdown(table_html, unsafe_allow_html=True)
-            st.markdown(f"<div style='color: #8b949e; font-size: 12px; margin-top: 12px; text-align: right;'>{len(blocked_details)} IP(s) currently blocked — Forensic data enriched</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='color: #8b949e; font-size: 12px; margin-top: 12px; text-align: right;'>{len(blocked_details)} IP(s) currently blocked  Forensic data enriched</div>", unsafe_allow_html=True)
 
             # IP action buttons (Profile + Locate on Map)
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<div style='color: #FF8C00; font-size: 13px; font-weight: 700; margin-bottom: 8px;'>🔎 Investigate  |  📍 Show on Map:</div>", unsafe_allow_html=True)
+            st.markdown("<div style='color: #FF8C00; font-size: 13px; font-weight: 700; margin-bottom: 8px;'> Investigate  |   Show on Map:</div>", unsafe_allow_html=True)
             cols = st.columns(min(len(blocked_details), 4))
             for i, b in enumerate(blocked_details[:8]):
                 with cols[i % 4]:
                     c1, c2 = st.columns(2)
                     with c1:
-                        if st.button(f"🔎 {b['ip'][:15]}", key=f"profile_{b['ip']}", use_container_width=True):
+                        if st.button(f" {b['ip'][:15]}", key=f"profile_{b['ip']}", use_container_width=True):
                             st.session_state.profile_ip = b['ip']
                             st.rerun()
                     with c2:
                         _lat = b.get('latitude', 0)
                         _lon = b.get('longitude', 0)
                         if _lat and _lon and _lat != 0 and _lon != 0:
-                            if st.button(f"📍 Map", key=f"locate_{b['ip']}", use_container_width=True):
+                            if st.button(f" Map", key=f"locate_{b['ip']}", use_container_width=True):
                                 prof = db_utils.get_attacker_profile(b['ip'])
                                 st.session_state.selected_ip_coords = {
                                     'lat': _lat, 'lon': _lon,
@@ -1433,11 +1903,11 @@ with tab_dashboard:
                                 st.session_state.profile_ip = None
                                 st.rerun()
         else:
-            st.markdown('<div class="blocklist-empty">✅ No active blocks. System is clear.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="blocklist-empty"> No active blocks. System is clear.</div>', unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-        if st.button("⬅️  Back to Dashboard", key="btn_close_blocklist", use_container_width=True):
+        if st.button("  Back to Dashboard", key="btn_close_blocklist", use_container_width=True):
             st.session_state.show_blocklist = False
             st.session_state.profile_ip = None
             st.rerun()
@@ -1454,7 +1924,7 @@ with tab_dashboard:
         _h_fn = _history_data.get('filename', 'Unknown')
         st.markdown(f"""
         <div style="text-align: center; margin-bottom: 10px; padding: 16px; border-radius: 10px; background: rgba(163,113,247,0.15); border: 2px solid #a371f7;">
-            <div style="color: #a371f7; font-size: 20px; font-weight: 900; letter-spacing: 1px;">📜 HISTORICAL VIEW</div>
+            <div style="color: #a371f7; font-size: 20px; font-weight: 900; letter-spacing: 1px;"> HISTORICAL VIEW</div>
             <div style="color: #e6edf3; font-size: 15px; margin-top: 8px;">
                 <span style="color: #8b949e;">File:</span> <b>{_h_fn}</b> &nbsp;|&nbsp;
                 <span style="color: #8b949e;">Session Time:</span> <b>{_h_ts}</b>
@@ -1472,21 +1942,21 @@ with tab_dashboard:
         with s1:
             st.markdown(f"""
             <div class="cyber-card" style="border-color: #00D4FF !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(0,212,255,0.6) !important;">
-                <div style="color: #00D4FF; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🌐 Flows Analyzed</div>
+                <div style="color: #00D4FF; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;"> Flows Analyzed</div>
                 <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(0,212,255,0.4);">{h_flows}</div>
             </div>
             """, unsafe_allow_html=True)
         with s2:
             st.markdown(f"""
             <div class="cyber-card" style="border-color: #FF4B4B !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(255,75,75,0.6) !important;">
-                <div style="color: #FF4B4B; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🎯 Threats Detected</div>
+                <div style="color: #FF4B4B; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;"> Threats Detected</div>
                 <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(255,75,75,0.4);">{h_threats}</div>
             </div>
             """, unsafe_allow_html=True)
         with s3:
             st.markdown(f"""
             <div class="cyber-card" style="border-color: #00FF41 !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(0,255,65,0.6) !important;">
-                <div style="color: #00FF41; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🚫 Total IPs Blocked</div>
+                <div style="color: #00FF41; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;"> Total IPs Blocked</div>
                 <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(0,255,65,0.4);">{h_blocked}</div>
             </div>
             """, unsafe_allow_html=True)
@@ -1562,12 +2032,12 @@ with tab_dashboard:
             col_ctrl, col_space = st.columns([2, 8])
             with col_ctrl:
                 st.markdown('<div class="neon-btn-stop">', unsafe_allow_html=True)
-                if st.button("🛑 Stop Playback", use_container_width=True):
+                if st.button(" Stop Playback", use_container_width=True):
                     st.session_state.historical_playback = False
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
-            st.markdown("<h3 style='text-align: center; color: #FF4B4B; text-shadow: 0 0 10px rgba(255,75,75,0.6);'>🎬 Attack Timeline Playback</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align: center; color: #FF4B4B; text-shadow: 0 0 10px rgba(255,75,75,0.6);'> Attack Timeline Playback</h3>", unsafe_allow_html=True)
             
             p_col1, p_col2 = st.columns([7, 3])
             with p_col1:
@@ -1666,13 +2136,13 @@ with tab_dashboard:
             col_ctrl, col_space = st.columns([3, 7])
             with col_ctrl:
                 st.markdown('<div class="neon-btn-play">', unsafe_allow_html=True)
-                if st.button("🎬 Play Attack Timeline", use_container_width=True) and _saved_points:
+                if st.button(" Play Attack Timeline", use_container_width=True) and _saved_points:
                     st.session_state.historical_playback = True
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
                 
             # Historical Map (Static)
-            st.markdown("<h3 style='text-align: center;'>🌍 Global Threat Radar (Archived)</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align: center;'> Global Threat Radar (Archived)</h3>", unsafe_allow_html=True)
             col_map_space1, col_map_center, col_map_space2 = st.columns([1, 8, 1])
             with col_map_center:
                 map_json = _history_data.get('map_data_json', '[]')
@@ -1681,7 +2151,7 @@ with tab_dashboard:
             st.divider()
             
             # Historical Streaming Feed (from saved map points)
-            st.markdown("### 📡 Archived Threat Feed")
+            st.markdown("###  Archived Threat Feed")
             if _saved_points:
                 st.markdown("""
                 <style>
@@ -1699,8 +2169,8 @@ with tab_dashboard:
                     sev = pt.get('severity', 'HIGH').upper()
                     sev_class = f"sev-{sev}"
                     loc = f"{pt.get('city','N/A')}, {pt.get('country','N/A')}"
-                    dst_hl = f"<span style='color: #FFFF00; font-weight: 900; text-shadow: 0 0 5px rgba(255, 255, 0, 0.5);'>{pt.get('dst_ip','—')}</span>"
-                    feed_html += f"<tr><td>{pt.get('timestamp','—')}</td><td>{pt.get('src_ip','—')}</td><td>{dst_hl}</td><td>{pt.get('attack_type','—')}</td><td class='{sev_class}'>{sev}</td><td>{loc}</td></tr>"
+                    dst_hl = f"<span style='color: #FFFF00; font-weight: 900; text-shadow: 0 0 5px rgba(255, 255, 0, 0.5);'>{pt.get('dst_ip','')}</span>"
+                    feed_html += f"<tr><td>{pt.get('timestamp','')}</td><td>{pt.get('src_ip','')}</td><td>{dst_hl}</td><td>{pt.get('attack_type','')}</td><td class='{sev_class}'>{sev}</td><td>{loc}</td></tr>"
                 feed_html += "</table>"
                 st.markdown(feed_html, unsafe_allow_html=True)
             else:
@@ -1709,7 +2179,7 @@ with tab_dashboard:
         st.divider()
         
         # Attack Distribution Chart (from saved data)
-        st.markdown("### 📊 Attack Distribution")
+        st.markdown("###  Attack Distribution")
         try:
             import json as _djson
             _attack_dist = _djson.loads(_history_data.get('attack_distribution', '{}'))
@@ -1741,7 +2211,7 @@ with tab_dashboard:
             rp = Path(report_path)
             if rp.exists():
                 with open(rp, "rb") as f:
-                    st.download_button("📥 Download Past Report", f.read(), file_name=rp.name, mime="application/pdf", use_container_width=True)
+                    st.download_button(" Download Past Report", f.read(), file_name=rp.name, mime="application/pdf", use_container_width=True)
         
     else:
         # ---- LIVE VIEW MODE ----
@@ -1752,21 +2222,21 @@ with tab_dashboard:
         with s1:
             st.markdown(f"""
             <div class="cyber-card" style="border-color: #00D4FF !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(0,212,255,0.6) !important;">
-                <div style="color: #00D4FF; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🌐 Flows Analyzed</div>
+                <div style="color: #00D4FF; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;"> Flows Analyzed</div>
                 <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(0,212,255,0.4);">{st.session_state.total_analyzed}</div>
             </div>
             """, unsafe_allow_html=True)
         with s2:
             st.markdown(f"""
             <div class="cyber-card" style="border-color: #FF4B4B !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(255,75,75,0.6) !important;">
-                <div style="color: #FF4B4B; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🎯 Threats Detected</div>
+                <div style="color: #FF4B4B; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;"> Threats Detected</div>
                 <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(255,75,75,0.4);">{st.session_state.total_malicious}</div>
             </div>
             """, unsafe_allow_html=True)
         with s3:
             st.markdown(f"""
             <div class="cyber-card" style="border-color: #00FF41 !important; text-align: center; padding: 25px 15px; box-shadow: 0 0 20px rgba(0,255,65,0.6) !important;">
-                <div style="color: #00FF41; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;">🚫 Total IPs Blocked</div>
+                <div style="color: #00FF41; font-size: 16px; text-transform: uppercase; font-weight: 900; letter-spacing: 1.2px;"> Total IPs Blocked</div>
                 <div style="color: #FFFFFF; font-size: 42px; font-weight: 900; margin-top: 12px; text-shadow: 0 0 10px rgba(0,255,65,0.4);">{len(st.session_state.blocked_ips)}</div>
             </div>
             """, unsafe_allow_html=True)
@@ -1774,7 +2244,7 @@ with tab_dashboard:
         st.divider()
 
         # ROW 2: Global Threat Radar (World Map centered)
-        st.markdown("<h3 style='text-align: center;'>🌍 Global Threat Radar</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center;'> Global Threat Radar</h3>", unsafe_allow_html=True)
         
         # Show tracking banner if an IP is focused
         _hl = st.session_state.get("selected_ip_coords", None)
@@ -1784,7 +2254,7 @@ with tab_dashboard:
                         background: rgba(255,75,75,0.1); border: 1px solid #FF4B4B;">
                 <span style="color: #FF4B4B; font-family: 'Orbitron', monospace; font-size: 14px; font-weight: 900;
                              letter-spacing: 1px;">
-                    🎯 TRACKING: {_hl.get('ip','N/A')} — {_hl.get('city','')}, {_hl.get('country','')} | Risk: {_hl.get('risk','N/A')}
+                     TRACKING: {_hl.get('ip','N/A')}  {_hl.get('city','')}, {_hl.get('country','')} | Risk: {_hl.get('risk','N/A')}
                 </span>
             </div>
             """, unsafe_allow_html=True)
@@ -1794,14 +2264,14 @@ with tab_dashboard:
             render_global_threat_map()
         
         if _hl:
-            if st.button("❌  Clear Focus — Return to Global View", key="btn_clear_focus", use_container_width=True):
+            if st.button("  Clear Focus  Return to Global View", key="btn_clear_focus", use_container_width=True):
                 st.session_state.selected_ip_coords = None
                 st.rerun()
         
         st.divider()
 
         # ROW 3: Streaming Feed
-        st.markdown("### 📡 Live Streaming Feed")
+        st.markdown("###  Live Streaming Feed")
         if st.session_state.alerts:
             df_alerts = pd.DataFrame(st.session_state.alerts)
             
@@ -1847,7 +2317,7 @@ with tab_dashboard:
             </style>
             """, unsafe_allow_html=True)
 
-            table_html = "<table class='streaming-table'><tr><th>TIMESTAMP</th><th>SRC IP</th><th>DST IP</th><th>THREAT TYPE</th><th>SEVERITY</th><th>🧠 AI CONFIDENCE</th></tr>"
+            table_html = "<table class='streaming-table'><tr><th>TIMESTAMP</th><th>SRC IP</th><th>DST IP</th><th>THREAT TYPE</th><th>SEVERITY</th><th> AI CONFIDENCE</th></tr>"
             for _, row in df_alerts.head(15).iterrows():
                 sev = row.get("severity", "NORMAL").upper()
                 sev_class = f"sev-{sev}"
@@ -1878,7 +2348,7 @@ with tab_dashboard:
         st.divider()
         
         # ROW 4: Threat Analytics UI
-        st.markdown("### 📊 Threat Analytics")
+        st.markdown("###  Threat Analytics")
         render_visualizations()
         st.divider()
 
@@ -1891,13 +2361,13 @@ with tab_dashboard:
         <div style="text-align: center; margin: 10px 0 20px 0;">
             <span style="font-family: 'Orbitron', monospace; font-size: 18px; font-weight: 900;
                          color: #00D4FF; letter-spacing: 2px; text-shadow: 0 0 10px rgba(0,212,255,0.4);">
-                📄 FORENSIC REPORT GENERATOR
+                 FORENSIC REPORT GENERATOR
             </span>
         </div>
         """, unsafe_allow_html=True)
 
         if st.session_state.alerts:
-            if st.button("📥  Generate & Download Forensic PDF", key="btn_forensic_pdf", use_container_width=True):
+            if st.button("  Generate & Download Forensic PDF", key="btn_forensic_pdf", use_container_width=True):
                 from report_utils import generate_forensic_pdf
                 from collections import Counter
 
@@ -1952,7 +2422,7 @@ with tab_dashboard:
                         top_country, top_attack
                     )
                     st.download_button(
-                        label="📥 Download Forensic Report PDF",
+                        label=" Download Forensic Report PDF",
                         data=pdf_bytes,
                         file_name=f"IIDS_Forensic_Report_{__import__('datetime').datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
                         mime="application/pdf",
@@ -1966,7 +2436,7 @@ with tab_dashboard:
             st.markdown("""
             <div style="text-align: center; padding: 25px; color: #8b949e; font-family: 'Roboto Mono', monospace;
                         background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;">
-                ℹ️ Run a detection analysis first to generate forensic report data.
+                 Run a detection analysis first to generate forensic report data.
             </div>
             """, unsafe_allow_html=True)
         st.divider()
@@ -1989,7 +2459,7 @@ with tab_chat:
         formatted = format_text(text)
         st.markdown(f"""
         <div style="background-color: #238636; color: white; margin-left: auto; width: fit-content; max-width: 75%; padding: 16px 20px; border-radius: 16px 16px 0 16px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
-            <div style="font-size: 13px; color: rgba(255,255,255,0.8); margin-bottom: 8px;">👤 You</div>
+            <div style="font-size: 13px; color: rgba(255,255,255,0.8); margin-bottom: 8px;"> You</div>
             <div style="font-size: 15px; line-height: 1.6;">{formatted}</div>
         </div>
         """, unsafe_allow_html=True)
@@ -1998,12 +2468,12 @@ with tab_chat:
         formatted = format_text(text)
         st.markdown(f"""
         <div style="background-color: #161b22; color: #58a6ff; width: fit-content; max-width: 85%; padding: 16px 20px; border: 1px solid #30363d; border-radius: 16px 16px 16px 0; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(88,166,255,0.05);">
-            <div style="font-size: 13px; color: #8b949e; margin-bottom: 8px;">🤖 IIDS Assistant</div>
+            <div style="font-size: 13px; color: #8b949e; margin-bottom: 8px;"> IIDS Assistant</div>
             <div style="font-size: 15px; line-height: 1.6;">{formatted}</div>
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("<h3 style='color: #e6edf3; margin-bottom: 20px;'>💬 Tactical Operations Center (TOC)</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #e6edf3; margin-bottom: 20px;'> Tactical Operations Center (TOC)</h3>", unsafe_allow_html=True)
 
     # Chat messages background
     for msg in st.session_state.messages:
@@ -2128,7 +2598,7 @@ with tab_chat:
 #  TAB 3: MANUAL ANALYSIS
 # ==============================
 with tab_manual:
-    st.markdown("### 🔬 Manual Intelligence Gathering")
+    st.markdown("###  Manual Intelligence Gathering")
     st.caption("Input explicit packet telemetry manually for zero-day pipeline tests.")
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -2242,17 +2712,17 @@ with tab_manual:
         st.session_state.total_analyzed += 1
 
         # Results
-        st.markdown("### 📈 Pipeline Telemetry")
+        st.markdown("###  Pipeline Telemetry")
         mc1, mc2, mc3, mc4 = st.columns(4)
         with mc1:
-            metric_card("Anomaly Score", f"{anomaly_score:.4f}", "🔍")
+            metric_card("Anomaly Score", f"{anomaly_score:.4f}", "")
         with mc2:
-            metric_card("Malicious Prob", f"{malicious_prob:.4f}", "⚠️")
+            metric_card("Malicious Prob", f"{malicious_prob:.4f}", "")
         with mc3:
             pname = PROTOCOL_NAMES.get(st.session_state.m_protocol, "Unknown")
-            metric_card("Protocol", pname, "📡")
+            metric_card("Protocol", pname, "")
         with mc4:
-            metric_card("Total Bytes", f"{st.session_state.m_in_bytes + st.session_state.m_out_bytes:,}", "📦")
+            metric_card("Total Bytes", f"{st.session_state.m_in_bytes + st.session_state.m_out_bytes:,}", "")
 
         if is_malicious:
             st.session_state.total_malicious += 1
@@ -2271,10 +2741,10 @@ with tab_manual:
                 <p><b>Attack Paradigm:</b> {attack_name}</p>
                 <p style="color: #8b949e;">{ATTACK_DESCRIPTIONS.get(attack_name, '')}</p>
                 <div style="background: rgba(255,100,100,0.1); padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 13px;">
-                    <b>🎯 AI Explanation:</b> {shap_explanation}
+                    <b> AI Explanation:</b> {shap_explanation}
                 </div>
                 <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; margin-top: 15px;">
-                    <b>Source Routing:</b> <code>{st.session_state.m_src_ip}:{st.session_state.m_src_port}</code> &nbsp;➔&nbsp; <b>Dest Routing:</b> <code>{st.session_state.m_dst_ip}:{st.session_state.m_dst_port}</code>
+                    <b>Source Routing:</b> <code>{st.session_state.m_src_ip}:{st.session_state.m_src_port}</code> &nbsp;&nbsp; <b>Dest Routing:</b> <code>{st.session_state.m_dst_ip}:{st.session_state.m_dst_port}</code>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -2312,7 +2782,7 @@ with tab_manual:
                 <h3 style="color: #58a6ff; margin-top: 0;">TRAFFIC IS BENIGN</h3>
                 <p>Telemetry indicates normal operational state.</p>
                 <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; margin-top: 15px;">
-                    <b>Source Routing:</b> <code>{st.session_state.m_src_ip}:{st.session_state.m_src_port}</code> &nbsp;➔&nbsp; <b>Dest Routing:</b> <code>{st.session_state.m_dst_ip}:{st.session_state.m_dst_port}</code>
+                    <b>Source Routing:</b> <code>{st.session_state.m_src_ip}:{st.session_state.m_src_port}</code> &nbsp;&nbsp; <b>Dest Routing:</b> <code>{st.session_state.m_dst_ip}:{st.session_state.m_dst_port}</code>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -2332,7 +2802,7 @@ with tab_manual:
             st.markdown("""
             <div class="cyber-card" style="padding: 24px; margin-top: 10px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <h3 style="margin: 0; color: #e6edf3;">🧠 Feature Importance Analysis</h3>
+                    <h3 style="margin: 0; color: #e6edf3;"> Feature Importance Analysis</h3>
                     <span style="background-color: rgba(255, 77, 77, 0.15); color: #ff4d4d; border: 1px solid #ff4d4d; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; box-shadow: 0 0 10px rgba(255, 77, 77, 0.3);">Top 10 Features Highlighted</span>
                 </div>
                 <p style="color: #8b949e; margin-bottom: 25px; font-size: 15px;">Top factors influencing the AI prediction</p>
@@ -2396,10 +2866,10 @@ with tab_manual:
 #  TAB 4: CORPORATE PORTAL
 # ==============================
 with tab_corporate:
-    st.markdown("## 🏢 Corporate Intelligence & Reporting Portal")
+    st.markdown("##  Corporate Intelligence & Reporting Portal")
     
     # Part 2: Executive Dashboard
-    st.markdown("### 📈 Executive Analytics Dashboard")
+    st.markdown("###  Executive Analytics Dashboard")
     dash_col1, dash_col2 = st.columns([1, 1])
     
     import plotly.graph_objects as go
@@ -2451,21 +2921,39 @@ with tab_corporate:
         else:
             st.info("No logs generated to display distribution.")
 
-    st.markdown("#### 🌍 Top Offenders")
+    st.markdown("####  Top Offenders")
     if not df_logs.empty:
         df_top = df_logs.groupby(['country', 'src_ip']).size().reset_index(name='Attack Count').sort_values(by='Attack Count', ascending=False).head(5)
-        st.dataframe(df_top, use_container_width=True, hide_index=True)
+        
+        table_html = """<table class="tactical-table">
+<thead>
+<tr>
+<th>GEO-LOCATION</th>
+<th>SOURCE IP ADDRESS</th>
+<th style="text-align: center;">ATTACK COUNT</th>
+</tr>
+</thead>
+<tbody>"""
+        for _, row in df_top.iterrows():
+            table_html += f"""
+<tr>
+<td>{row['country']}</td>
+<td style="color: #FFFF00; font-weight: 700;">{row['src_ip']}</td>
+<td style="text-align: center; color: #FF4B4B; font-weight: 900;">{row['Attack Count']}</td>
+</tr>"""
+        table_html += "</tbody></table>"
+        st.markdown(table_html, unsafe_allow_html=True)
     else:
-        st.info("No data.")
+        st.info("No offensive data currently archived in the intelligence pool.")
         
     st.divider()
     
     # Part 3: PDF Builder & Export
-    st.markdown("### 📄 Professional PDF Export")
+    st.markdown("###  Professional PDF Export")
     from report_utils import generate_executive_pdf
     import datetime
     
-    if st.button("🔧 Generate Executive Security Report", type="primary"):
+    if st.button(" Generate Executive Security Report", type="primary"):
         with st.spinner("Compiling database matrices and metrics..."):
             # Identify recent payload tracking
             pdf_flows = st.session_state.get('last_upload_total_flows', st.session_state.total_analyzed)
@@ -2487,7 +2975,7 @@ with tab_corporate:
             pdf_bytes = generate_executive_pdf(pdf_flows, pdf_malicious, st.session_state.blocked_ips, critical_logs, top_country, top_attack)
             
             st.download_button(
-                label="📥 Download Generated PDF Report",
+                label=" Download Generated PDF Report",
                 data=bytes(pdf_bytes),
                 file_name=f"IIDS_Security_Report_{datetime.datetime.now().strftime('%Y%m%d')}.pdf",
                 mime="application/pdf"
@@ -2496,7 +2984,7 @@ with tab_corporate:
     st.divider()
 
     # Part 1: Live SOC Monitoring Dashboard
-    st.markdown("### 📡 Live SOC Monitoring Dashboard")
+    st.markdown("###  Live SOC Monitoring Dashboard")
     
     col_health1, col_health2, col_health3 = st.columns(3)
     with col_health1:
@@ -2508,15 +2996,33 @@ with tab_corporate:
         
     st.markdown("<br>", unsafe_allow_html=True)
     
-    with st.expander("⚙️ Corporate System API Integration"):
-        st.text_input("Company Endpoint URL", placeholder="https://api.company.com/v1/sec-alerts")
-        st.text_input("API Auth Key", type="password", placeholder="SEC-XXXX-XXXX")
+    st.markdown("""
+    <div style="background: rgba(0, 212, 255, 0.02); border: 1px solid rgba(0, 212, 255, 0.2); border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+        <div style="color: #00D4FF; font-family: 'Orbitron', sans-serif; font-size: 16px; font-weight: 900; letter-spacing: 2px; margin-bottom: 20px; border-bottom: 1px solid rgba(0, 212, 255, 0.1); padding-bottom: 10px;">
+             CORPORATE SYSTEM API INTEGRATION
+        </div>
+""", unsafe_allow_html=True)
+    c_api1, c_api2 = st.columns(2)
+    with c_api1:
+        st.text_input("Company Endpoint URL", placeholder="https://api.company.com/v1/sec-alerts", key="corp_url")
+    with c_api2:
+        st.text_input("API Auth Key", type="password", placeholder="SEC-XXXX-XXXX", key="corp_key")
+    st.markdown("</div>", unsafe_allow_html=True)
         
     template_df = pd.DataFrame(columns=FEATURES)
     csv_template = template_df.to_csv(index=False).encode('utf-8')
-    st.download_button(label="📥 Download Template CSV", data=csv_template, file_name="IIDS_template.csv", mime="text/csv")
+    st.download_button(label=" Download Template CSV", data=csv_template, file_name="IIDS_template.csv", mime="text/csv")
     
-    st.info("**Required Features for Analysis:** `IPV4_SRC_ADDR`, `IPV4_DST_ADDR`, `L4_SRC_PORT`, `PROTOCOL`, `IN_BYTES`, `OUT_BYTES`, `IN_PKTS`, `OUT_PKTS`, `TCP_FLAGS`, `FLOW_DURATION_MILLISECONDS`. Missing analytical features will be defaulted to 0.")
+    st.markdown("""
+<div class="analytical-card">
+    <b>Required Features for Analysis:</b> 
+    <code>IPV4_SRC_ADDR</code> <code>IPV4_DST_ADDR</code> <code>L4_SRC_PORT</code> 
+    <code>PROTOCOL</code> <code>IN_BYTES</code> <code>OUT_BYTES</code> 
+    <code>IN_PKTS</code> <code>OUT_PKTS</code> <code>TCP_FLAGS</code> 
+    <code>FLOW_DURATION_MILLISECONDS</code>. 
+    <br><span style="color: #8b949e; font-size: 12px; margin-top: 10px; display: block;">Note: Missing analytical features will be defaulted to 0.</span>
+</div>
+""", unsafe_allow_html=True)
     
     uploaded_file = st.file_uploader("Upload Network Traffic Data (CSV) for Live Monitoring", type=['csv'])
     
@@ -2529,9 +3035,9 @@ with tab_corporate:
     if "uploaded_df" in st.session_state and st.session_state.uploaded_df is not None:
         col_btn1, col_btn2 = st.columns([1, 1])
         with col_btn1:
-            start_scan = st.button("🚀 Initialize Live Feed", type="primary", use_container_width=True)
+            start_scan = st.button(" Initialize Live Feed", type="primary", use_container_width=True)
         with col_btn2:
-            stop_scan = st.button("🛑 HALT MONITORING", use_container_width=True)
+            stop_scan = st.button(" HALT MONITORING", use_container_width=True)
             
         if stop_scan:
             st.session_state.stop_scan = True
@@ -2612,7 +3118,7 @@ with tab_corporate:
                 ph_status = st.empty()
                 
                 # TOP SECTION (Metrics)
-                st.markdown("#### 📊 Real-Time Metrics Table")
+                st.markdown("####  Real-Time Metrics Table")
                 m_col1, m_col2, m_col3 = st.columns(3)
                 ph_total_scanned = m_col1.empty()
                 ph_active_threats = m_col2.empty()
@@ -2625,13 +3131,13 @@ with tab_corporate:
                 st.markdown("<br>", unsafe_allow_html=True)
                 
                 # MIDDLE SECTION (The Radar)
-                st.markdown("#### 🌍 Live Threat Radar")
+                st.markdown("####  Live Threat Radar")
                 ph_map = st.empty()
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
                 # BOTTOM SECTION (The Streaming Feed + Log)
-                st.markdown("#### 📡 Streaming Feed & Logs")
+                st.markdown("####  Streaming Feed & Logs")
                 feed_col, log_col = st.columns([7, 3])
                 with feed_col:
                     ph_feed = st.empty()
@@ -2650,7 +3156,7 @@ with tab_corporate:
                 import pydeck as pdk
                 import random
                 
-                # Create a SINGLE stable ViewState — reused across all updates
+                # Create a SINGLE stable ViewState  reused across all updates
                 _stable_view = pdk.ViewState(latitude=20.0, longitude=0.0, zoom=1, pitch=0)
                 
                 scan_start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -2735,7 +3241,7 @@ with tab_corporate:
                             "Source IP": src_ip,
                             "Dest IP": flow_dict.get('IPV4_DST_ADDR', "10.0.0.1"),
                             "Protocol": PROTOCOL_NAMES.get(flow_dict.get('PROTOCOL', 6), "Unknown"),
-                            "Status": "🔴 MALICIOUS" if is_malicious else "🟢 BENIGN"
+                            "Status": " MALICIOUS" if is_malicious else " BENIGN"
                         }
                         recent_flows.append(flow_visual)
                         if len(recent_flows) > 5:
@@ -2752,22 +3258,44 @@ with tab_corporate:
                         progress_bar.progress(min((i + 1) / total_rows, 1.0))
                         ph_status.text(f"Monitoring Row {i+1} / {total_rows}...")
                         
-                        def color_threats(row_data):
-                            if "MALICIOUS" in row_data['Status']:
-                                return ['background-color: rgba(255, 0, 0, 0.3); color: #ff5555; border-bottom: 1px solid red; font-weight: bold'] * len(row_data)
-                            else:
-                                return ['background-color: transparent; color: #00ff00; border-bottom: 1px solid #00ff00'] * len(row_data)
-
+                        # 1. Update Streaming Tactical Table
                         df_feed = pd.DataFrame(recent_flows)[::-1]
-                        styled_df = df_feed.style.apply(color_threats, axis=1)
-                        ph_feed.dataframe(styled_df, use_container_width=True, hide_index=True)
                         
-                        log_str = "\n".join(cmd_logs)
-                        if not log_str:
-                            log_str = "System active..."
+                        feed_html = """<table class="tactical-table" style="margin-top:0;">
+<thead>
+<tr>
+<th>TIME</th>
+<th>SOURCE IP</th>
+<th>DEST IP</th>
+<th>PROTOCOL</th>
+<th style="text-align: center;">STATUS</th>
+</tr>
+</thead>
+<tbody>"""
+                        for _, row in df_feed.iterrows():
+                            status_style = "color: #FF4B4B; font-weight: 900;" if "MALICIOUS" in row['Status'] else "color: #00FF41; font-weight: 700;"
+                            row_bg = "background: rgba(255, 75, 75, 0.05);" if "MALICIOUS" in row['Status'] else ""
+                            feed_html += f"""
+<tr style="{row_bg}">
+<td>{row['Time']}</td>
+<td style="color: #FFFF00;">{row['Source IP']}</td>
+<td>{row['Dest IP']}</td>
+<td>{row['Protocol']}</td>
+<td style="text-align: center; {status_style}">{row['Status']}</td>
+</tr>"""
+                        feed_html += "</tbody></table>"
+                        ph_feed.markdown(feed_html, unsafe_allow_html=True)
                         
-                        # Use markdown/code to avoid DuplicateWidgetID issues in loop
-                        ph_cmd_log.markdown(f"```bash\n{log_str}\n```")
+                        # 2. Update Tactical Terminal Log
+                        log_html = '<div class="tactical-log">'
+                        if not cmd_logs:
+                            log_html += '<div class="log-info">[SYSTEM] Initializing surveillance modules...</div>'
+                        else:
+                            for log in cmd_logs:
+                                clean_log = log.replace("[INFO]", '<span class="log-info">[INFO]</span>').replace("[SUCCESS]", '<span class="log-success">[SUCCESS]</span>')
+                                log_html += f"<div>{clean_log}</div>"
+                        log_html += "</div>"
+                        ph_cmd_log.markdown(log_html, unsafe_allow_html=True)
                         
                         # Render Live UI map ONLY when new threats are added (prevents shaking)
                         if len(live_alerts) != _last_map_count:
@@ -2918,13 +3446,13 @@ def render_executive_dashboard():
         bw_str = f"{malicious_count} Conn"
 
     if "CRITICAL" in df_alerts['severity'].values or "Backdoor" in df_alerts['attack_type'].values or malicious_count > (total_flows * 0.3):
-        risk_level = "CRITICAL 🔴"
+        risk_level = "CRITICAL "
         risk_color = "#FF4B4B"
     elif malicious_count > (total_flows * 0.1):
-        risk_level = "HIGH 🟠"
+        risk_level = "HIGH "
         risk_color = "#f2cc60"
     else:
-        risk_level = "MODERATE 🟡"
+        risk_level = "MODERATE "
         risk_color = "#f2cc60"
 
     lang = st.radio("Select Briefing Language / اختر لغة التقرير:", ["English", "العربية"], horizontal=True)
@@ -2937,7 +3465,7 @@ def render_executive_dashboard():
     st.markdown(f'<div class="exec-briefing" dir="{"rtl" if lang == "العربية" else "ltr"}">{briefing}</div>', unsafe_allow_html=True)
 
     # Agent Intelligence Logs (Bilingual)
-    st.markdown("<h4 style='color: #00D4FF; margin-bottom: 15px; font-family: Orbitron;'>🤖 Forensic Agent Intelligence Logs</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #00D4FF; margin-bottom: 15px; font-family: Orbitron;'> Forensic Agent Intelligence Logs</h4>", unsafe_allow_html=True)
     alc1, alc2 = st.columns(2)
     with alc1:
         st.markdown(f"""
@@ -2964,7 +3492,7 @@ def render_executive_dashboard():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    st.markdown("<h4 style='color: #e6edf3; font-family: Roboto Mono; text-align: center; margin-bottom: 20px;'>🔗 Attack Relationship Flow (Who ➔ What ➔ Where)</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #e6edf3; font-family: Roboto Mono; text-align: center; margin-bottom: 20px;'> Attack Relationship Flow (Who  What  Where)</h4>", unsafe_allow_html=True)
     
     sankey_df = df_alerts.groupby(['src_ip', 'attack_type', 'dst_ip']).size().reset_index(name='count').sort_values(by='count', ascending=False).head(15)
     
@@ -3039,7 +3567,7 @@ def render_deep_analysis_dashboard():
     
     # 1. Top Talkers Filter
     top_ips = df_alerts['src_ip'].value_counts().head(5).index.tolist()
-    filter_ip = st.selectbox("🎯 Select Top Talker IP for Forensic Audit:", ["ALL IPs"] + top_ips)
+    filter_ip = st.selectbox(" Select Top Talker IP for Forensic Audit:", ["ALL IPs"] + top_ips)
     
     if filter_ip != "ALL IPs":
         df_alerts = df_alerts[df_alerts['src_ip'] == filter_ip]
@@ -3053,7 +3581,7 @@ def render_deep_analysis_dashboard():
         
         # Quadrant A: Donut Chart & Severity Gauge
         with c1:
-            st.markdown('<div class="dad-card"><div class="dad-title">📊 Threat Distribution & Global Severity</div>', unsafe_allow_html=True)
+            st.markdown('<div class="dad-card"><div class="dad-title"> Threat Distribution & Global Severity</div>', unsafe_allow_html=True)
             
             malicious_ratio = len(df_alerts) / max(st.session_state.get('last_upload_total_flows', 1), 1)
             # Cap at 100, scale up slightly for visual effect
@@ -3113,11 +3641,23 @@ def render_deep_analysis_dashboard():
             top_table = df_alerts.groupby(['src_ip', 'attack_type']).size().reset_index(name='Hits')
             top_table = top_table.sort_values(by='Hits', ascending=False).head(8)
             
-            table_html = "<table style='width: 100%; border-collapse: collapse; font-family: Roboto Mono; font-size: 13px;'>"
-            table_html += "<tr style='background: #121212; color: #00D4FF; text-align: left;'><th style='padding: 8px;'>SOURCE IP</th><th style='padding: 8px;'>THREAT TYPE</th><th style='padding: 8px;'>HITS</th></tr>"
+            table_html = """<table class="tactical-table">
+<thead>
+<tr>
+<th>SOURCE IP</th>
+<th>THREAT TYPE</th>
+<th style="text-align: center;">HITS</th>
+</tr>
+</thead>
+<tbody>"""
             for _, row in top_table.iterrows():
-                table_html += f"<tr style='border-bottom: 1px solid #1a1a1a;'><td style='padding: 8px; color: #FFFF00; font-weight: bold;'>{row['src_ip']}</td><td style='padding: 8px;'>{row['attack_type']}</td><td style='padding: 8px; color: #f2cc60;'>{row['Hits']}</td></tr>"
-            table_html += "</table><br><br><br>"
+                table_html += f"""
+<tr>
+<td style="color: #FFFF00; font-weight: 700;">{row['src_ip']}</td>
+<td>{row['attack_type']}</td>
+<td style="text-align: center; color: #f2cc60; font-weight: 900;">{row['Hits']}</td>
+</tr>"""
+            table_html += "</tbody></table><br><br><br>"
             st.markdown(table_html, unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -3160,12 +3700,12 @@ def render_deep_analysis_dashboard():
             st.markdown('</div>', unsafe_allow_html=True)
             
         # ---- NEW: Advanced Threat Intelligence Section ----
-        st.markdown("<br><h4 style='color: #00D4FF; font-family: Orbitron; text-align: center; margin-bottom: 20px;'>🛡️ ADVANCED STRATEGIC INTELLIGENCE</h4>", unsafe_allow_html=True)
+        st.markdown("<br><h4 style='color: #00D4FF; font-family: Orbitron; text-align: center; margin-bottom: 20px;'> ADVANCED STRATEGIC INTELLIGENCE</h4>", unsafe_allow_html=True)
         
         ca1, ca2 = st.columns([4, 6])
         
         with ca1:
-            st.markdown('<div class="dad-card"><div class="dad-title">🎯 Attack Capability Mapping</div>', unsafe_allow_html=True)
+            st.markdown('<div class="dad-card"><div class="dad-title"> Attack Capability Mapping</div>', unsafe_allow_html=True)
             # Radar data categories
             categories = ['Volume', 'Persistence', 'Complexity', 'Diversity', 'Impact']
             
@@ -3202,7 +3742,7 @@ def render_deep_analysis_dashboard():
             st.markdown('</div>', unsafe_allow_html=True)
 
         with ca2:
-            st.markdown('<div class="dad-card"><div class="dad-title">📋 Strategic Forensic Recommendations</div>', unsafe_allow_html=True)
+            st.markdown('<div class="dad-card"><div class="dad-title"> Strategic Forensic Recommendations</div>', unsafe_allow_html=True)
             
             # Context-aware recommendations
             if top_threat == "DoS":
@@ -3236,4 +3776,6 @@ with tab_deep_analysis:
         render_deep_analysis_dashboard()
     else:
         st.info("Please upload data and run a Live Feed scan in the Corporate Portal to unlock Deep Analysis.")
+
+
 

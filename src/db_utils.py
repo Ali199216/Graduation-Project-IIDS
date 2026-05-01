@@ -65,9 +65,18 @@ def init_db():
             full_name TEXT,
             email TEXT UNIQUE,
             company_name TEXT,
-            password TEXT
+            password TEXT,
+            profile_pic TEXT
         )
     ''')
+    # Migrate users: add profile_pic column if missing
+    try:
+        cursor.execute("SELECT profile_pic FROM users LIMIT 1")
+    except sqlite3.OperationalError:
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN profile_pic TEXT")
+        except:
+            pass
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS analysis_sessions (
             session_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -385,15 +394,29 @@ def register_user(full_name, email, company_name, password):
     finally:
         conn.close()
 
+def update_user_profile_pic(email, base64_img):
+    """Save the profile picture Base64 string to the database."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET profile_pic = ? WHERE email = ?", (base64_img, email))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error updating profile pic: {e}")
+        return False
+    finally:
+        conn.close()
+
 def authenticate_user(email, password):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT full_name, company_name FROM users WHERE email = ? AND password = ?', 
+        cursor.execute('SELECT full_name, company_name, profile_pic FROM users WHERE email = ? AND password = ?', 
                        (email, hash_password(password)))
         user = cursor.fetchone()
         if user:
-            return True, {"full_name": user[0], "company_name": user[1]}
+            return True, {"full_name": user[0], "company_name": user[1], "profile_pic": user[2]}
         return False, None
     finally:
         conn.close()
