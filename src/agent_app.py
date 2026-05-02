@@ -1471,6 +1471,82 @@ def render_user_profile_page():
     archive_html += "</div></div>"
     st.markdown(archive_html, unsafe_allow_html=True)
 
+    # ---- NEW: NETWORK EVOLUTION TREND ----
+    st.markdown('<div style="margin-top: 30px;"></div>', unsafe_allow_html=True)
+    
+    # 3. Interactive UI Styling for the Chart Container (Global Lift/Glow)
+    st.markdown("""
+    <style>
+        [data-testid="stVerticalBlock"]:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 0 25px rgba(0, 212, 255, 0.4); 
+            transition: 0.3s; 
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    if sessions:
+        import plotly.express as px
+        # Prepare data for the trend chart
+        df_trend = pd.DataFrame(sessions)
+        # Convert timestamp to datetime for proper sorting
+        df_trend['timestamp'] = pd.to_datetime(df_trend['timestamp'])
+        df_trend = df_trend.sort_values(by='timestamp')
+        
+        # Implementation of Neon Trend Visualization (Area Chart for high-end feel)
+        fig_trend = px.area(
+            df_trend, 
+            x='timestamp', 
+            y='total_flows',
+            labels={'timestamp': 'Operational Timestamp', 'total_flows': 'Flow Volume'},
+            hover_data={'timestamp': '| %Y-%m-%d %H:%M', 'total_flows': True, 'filename': True}
+        )
+        
+        fig_trend.update_traces(
+            line=dict(color='#00D4FF', width=3),
+            fillcolor='rgba(0, 212, 255, 0.15)',
+            marker=dict(size=8, color='#00D4FF', symbol='square')
+        )
+        
+        fig_trend.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=0, r=0, t=20, b=0),
+            height=400,
+            xaxis=dict(
+                showgrid=True, 
+                gridcolor='rgba(0, 212, 255, 0.05)', 
+                title="",
+                tickfont=dict(color="#8b949e", family="Roboto Mono", size=10)
+            ),
+            yaxis=dict(
+                showgrid=True, 
+                gridcolor='rgba(0, 212, 255, 0.05)', 
+                title=dict(text="FLOW VOLUME", font=dict(color="#00D4FF", size=12, family="Orbitron")),
+                tickfont=dict(color="#8b949e", family="Roboto Mono", size=10)
+            ),
+            hovermode="x unified",
+            hoverlabel=dict(bgcolor="#050505", font_size=13, font_family="Roboto Mono", bordercolor="#00D4FF")
+        )
+
+        st.markdown("""
+        <div class="dad-card">
+            <div style="font-size: 24px; color: #FFFFFF; font-weight: 900; margin-bottom: 30px; font-family: 'Orbitron'; letter-spacing: 4px; text-align: center; animation: glowPulse 4s infinite;">
+                NETWORK EVOLUTION TREND
+            </div>
+        """, unsafe_allow_html=True)
+        st.plotly_chart(fig_trend, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div class="dad-card" style="text-align: center; padding: 80px 0;">
+            <div style="font-size: 20px; color: #FFFFFF; font-weight: 900; margin-bottom: 15px; font-family: 'Orbitron'; letter-spacing: 3px; animation: glowPulse 4s infinite;">
+                NETWORK EVOLUTION TREND
+            </div>
+            <p style="color: #8b949e; font-family: 'Roboto Mono'; font-size: 14px; letter-spacing: 1px;">Awaiting Data Analysis to Generate Trends...</p>
+        </div>
+        """, unsafe_allow_html=True)
+
 # ---- GLOBAL NAVIGATION ----
 tab_dashboard, tab_chat, tab_manual, tab_corporate, tab_deep_analysis = st.tabs(["Dashboard", "Chat", "Manual Analysis", "Corporate Portal", "Deep Analysis"])
 
