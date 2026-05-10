@@ -29,6 +29,7 @@ from agent import tools as agent_tools
 import db_utils
 from visuals import render_visualizations, render_global_threat_map, render_top_countries, render_historical_threat_map
 from explain_utils import explain_prediction
+from telegram_utils import is_telegram_configured, send_critical_alert, send_scan_summary, send_test_message
 
 db_utils.init_db()
 
@@ -367,6 +368,58 @@ if st.session_state.get('authenticated', False):
             if st.button('RETURN TO DASHBOARD', key='btn_ret_dash_prof', use_container_width=True):
                 st.session_state.current_page = "dashboard"
                 st.rerun()
+
+        # ---- TELEGRAM ALERT CONFIGURATION ----
+        st.markdown('<div class="sidebar-header-clean">TELEGRAM ALERTS</div>', unsafe_allow_html=True)
+        
+        # Initialize Telegram session state
+        if 'telegram_enabled' not in st.session_state:
+            st.session_state.telegram_enabled = False
+        if 'telegram_bot_token' not in st.session_state:
+            st.session_state.telegram_bot_token = ''
+        if 'telegram_chat_id' not in st.session_state:
+            st.session_state.telegram_chat_id = ''
+        
+        _tg_enabled = st.toggle('Enable Telegram Alerts', value=st.session_state.telegram_enabled, key='tg_toggle_ctrl')
+        st.session_state.telegram_enabled = _tg_enabled
+        
+        if _tg_enabled:
+            st.markdown("""
+            <div style="background: rgba(0, 212, 255, 0.03); border: 1px solid rgba(0, 212, 255, 0.15); border-radius: 8px; padding: 12px; margin-bottom: 10px;">
+                <div style="color: #00D4FF; font-size: 10px; font-weight: 900; letter-spacing: 1px; margin-bottom: 8px; font-family: 'Orbitron';">BOT CONFIGURATION</div>
+                <div style="color: #8b949e; font-size: 11px; line-height: 1.4;">1. Message <code>@BotFather</code> on Telegram<br>2. Send <code>/newbot</code> to create a bot<br>3. Copy the Bot Token<br>4. Send any message to your bot<br>5. Get Chat ID from <code>@userinfobot</code></div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            _tg_token = st.text_input('Bot Token', type='password', placeholder='123456:ABC-DEF1234...', key='tg_token_ctrl', value=st.session_state.telegram_bot_token)
+            st.session_state.telegram_bot_token = _tg_token
+            
+            _tg_chat = st.text_input('Chat ID', placeholder='-1001234567890', key='tg_chat_ctrl', value=st.session_state.telegram_chat_id)
+            st.session_state.telegram_chat_id = _tg_chat
+            
+            # ---- AUTO-SAVE TELEGRAM SETTINGS TO DB ----
+            _u_email_tg = st.session_state.get('user_email', '')
+            if _u_email_tg:
+                db_utils.save_telegram_settings(_u_email_tg, _tg_token, _tg_chat, _tg_enabled)
+            
+            if _tg_token and _tg_chat:
+                if st.button('TEST CONNECTION', key='btn_tg_test', use_container_width=True):
+                    _test_ok = send_test_message()
+                    if _test_ok:
+                        st.success('Connected! Check Telegram.')
+                    else:
+                        st.error('Failed. Verify Token & Chat ID.')
+                
+                # Status indicator
+                if is_telegram_configured():
+                    st.markdown('<div style="text-align: center; color: #00FF41; font-size: 11px; font-weight: 900; letter-spacing: 1px; margin-top: 5px;">STATUS: LINKED</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div style="text-align: center; color: #8b949e; font-size: 11px; letter-spacing: 1px; margin-top: 5px;">Awaiting configuration...</div>', unsafe_allow_html=True)
+        else:
+            # Save disabled state to DB
+            _u_email_tg = st.session_state.get('user_email', '')
+            if _u_email_tg:
+                db_utils.save_telegram_settings(_u_email_tg, st.session_state.get('telegram_bot_token', ''), st.session_state.get('telegram_chat_id', ''), False)
 
         st.markdown('<div class="sidebar-header-clean">SESSION HISTORY</div>', unsafe_allow_html=True)
 
@@ -1126,6 +1179,12 @@ if not st.session_state.authenticated:
                             st.session_state.user_email = login_email
                             st.session_state.profile_pic = user_data.get('profile_pic')
                             
+                            #  LOAD SAVED TELEGRAM SETTINGS
+                            _tg_saved = db_utils.get_telegram_settings(login_email)
+                            st.session_state.telegram_bot_token = _tg_saved.get('bot_token', '')
+                            st.session_state.telegram_chat_id = _tg_saved.get('chat_id', '')
+                            st.session_state.telegram_enabled = _tg_saved.get('enabled', False)
+                            
                             #  IMMEDIATE DATA RE-SYNC FOR NEW USER
                             st.session_state.alerts = db_utils.get_all_logs(user_email=login_email, limit=100)
                             st.session_state.blocked_ips = db_utils.get_blocked_ips_db(user_email=login_email)
@@ -1347,6 +1406,7 @@ def render_user_profile_page():
         
     with c2:
         sessions = db_utils.get_sessions(user_email)
+        st.session_state['user_history'] = sessions
         blocked_detailed = db_utils.get_blocked_ips_detailed(user_email=user_email)
         
         # The 3-Column Intelligence Table (Final Internal Alignment)
@@ -1538,14 +1598,9 @@ def render_user_profile_page():
         st.plotly_chart(fig_trend, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.markdown("""
-        <div class="dad-card" style="text-align: center; padding: 80px 0;">
-            <div style="font-size: 20px; color: #FFFFFF; font-weight: 900; margin-bottom: 15px; font-family: 'Orbitron'; letter-spacing: 3px; animation: glowPulse 4s infinite;">
-                NETWORK EVOLUTION TREND
-            </div>
-            <p style="color: #8b949e; font-family: 'Roboto Mono'; font-size: 14px; letter-spacing: 1px;">Awaiting Data Analysis to Generate Trends...</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
 
 # ---- GLOBAL NAVIGATION ----
 tab_dashboard, tab_chat, tab_manual, tab_corporate, tab_deep_analysis = st.tabs(["Dashboard", "Chat", "Manual Analysis", "Corporate Portal", "Deep Analysis"])
@@ -3341,7 +3396,7 @@ with tab_corporate:
                                 "severity": severity,
                                 "anomaly_score": anomaly_score,
                                 "malicious_probability": malicious_prob,
-                                "details": f"Live Stream Auto-Log",
+                                "details": f"Port {flow_dict.get('L4_SRC_PORT', 0)}->{flow_dict.get('L4_DST_PORT', 0)}, {int(flow_dict.get('IN_BYTES', 0))}B / {int(flow_dict.get('OUT_BYTES', 0))}B",
                                 "status": "ACTIVE",
                                 "shap_explanation": shap_explanation
                             }
@@ -3350,6 +3405,13 @@ with tab_corporate:
                             _u_email = st.session_state.get('user_email', '')
                             db_utils.save_attack_to_db(alert, user_email=_u_email)
                             st.session_state.alerts.insert(0, alert.copy())
+                            
+                            # ---- TELEGRAM ALERT (CRITICAL only to avoid spam) ----
+                            if severity == "CRITICAL" and is_telegram_configured():
+                                try:
+                                    send_critical_alert(alert)
+                                except Exception:
+                                    pass
                             
                             # Create a SEPARATE map point for pydeck (uses real geolocation)
                             map_point = {
@@ -3527,6 +3589,27 @@ with tab_corporate:
                             report_path=""
                         )
                         st.markdown(f'<div class="chic-toast">DATA SYNCHRONIZED: {malicious_added} Threats archived to Intelligence Vault.</div>', unsafe_allow_html=True)
+                        
+                        # ---- TELEGRAM: POST-SCAN SUMMARY ----
+                        if is_telegram_configured() and malicious_added > 0:
+                            try:
+                                _top_country_tg = 'Unknown'
+                                for _a in st.session_state.alerts[:malicious_added]:
+                                    _c = _a.get('country', '')
+                                    if _c and _c != 'N/A':
+                                        _top_country_tg = _c
+                                        break
+                                send_scan_summary(
+                                    total_flows=total_rows,
+                                    total_threats=malicious_added,
+                                    total_blocked=assets_shielded,
+                                    attack_counts=attack_counts,
+                                    filename=_filename,
+                                    top_country=_top_country_tg
+                                )
+                                st.markdown('<div class="chic-toast">TELEGRAM: Scan summary report dispatched.</div>', unsafe_allow_html=True)
+                            except Exception:
+                                pass
                     except Exception as save_err:
                         print(f"[!] Session save error: {save_err}")
                     

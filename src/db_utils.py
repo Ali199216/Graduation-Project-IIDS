@@ -91,6 +91,16 @@ def init_db():
             cursor.execute("ALTER TABLE users ADD COLUMN profile_pic TEXT")
         except:
             pass
+    # Migrate users: add telegram columns if missing
+    for _tg_col in ['telegram_bot_token', 'telegram_chat_id', 'telegram_enabled']:
+        try:
+            cursor.execute(f"SELECT {_tg_col} FROM users LIMIT 1")
+        except sqlite3.OperationalError:
+            try:
+                _default = "0" if _tg_col == 'telegram_enabled' else "''"
+                cursor.execute(f"ALTER TABLE users ADD COLUMN {_tg_col} TEXT DEFAULT {_default}")
+            except:
+                pass
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS analysis_sessions (
             session_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -342,12 +352,12 @@ def get_attacker_profile(ip, user_email=""):
         # Get all attacks from this IP
         if user_email:
             cursor.execute('''
-                SELECT attack_type, severity, timestamp, dst_ip, anomaly_score, city, country
+                SELECT attack_type, severity, timestamp, dst_ip, anomaly_score, city, country, details
                 FROM attack_logs WHERE src_ip = ? AND user_email = ? ORDER BY id DESC
             ''', (ip, user_email))
         else:
             cursor.execute('''
-                SELECT attack_type, severity, timestamp, dst_ip, anomaly_score, city, country
+                SELECT attack_type, severity, timestamp, dst_ip, anomaly_score, city, country, details
                 FROM attack_logs WHERE src_ip = ? ORDER BY id DESC
             ''', (ip,))
         rows = [dict(r) for r in cursor.fetchall()]
@@ -355,6 +365,18 @@ def get_attacker_profile(ip, user_email=""):
         if not rows:
             return None
         
+        total_bytes = 0
+        for r in rows:
+            try:
+                d = r.get('details', '')
+                if 'B /' in d:
+                    b_part = d.split(',')[-1].split('/')[0]
+                    total_bytes += int(''.join(filter(str.isdigit, b_part)))
+                elif "Auto-Log" in d:
+                    # Fallback for legacy logs without byte telemetry (Proxy: 1.42MB per hit)
+                    total_bytes += 1.42 * 1024 * 1024
+            except: pass
+
         attack_types = list(set(r['attack_type'] for r in rows if r.get('attack_type')))
         total_hits = len(rows)
         severities = [r['severity'] for r in rows if r.get('severity')]
@@ -385,6 +407,7 @@ def get_attacker_profile(ip, user_email=""):
         return {
             'ip': ip,
             'total_hits': total_hits,
+            'total_bytes': total_bytes,
             'risk': risk,
             'tags': tags,
             'attack_types': attack_types,
@@ -451,6 +474,45 @@ def update_user_profile_pic(email, base64_img):
     except Exception as e:
         print(f"Error updating profile pic: {e}")
         return False
+    finally:
+        conn.close()
+
+def save_telegram_settings(email, bot_token, chat_id, enabled):
+    """Persist Telegram alert configuration for a user."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET telegram_bot_token = ?, telegram_chat_id = ?, telegram_enabled = ? WHERE email = ?",
+            (bot_token, chat_id, '1' if enabled else '0', email)
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error saving Telegram settings: {e}")
+        return False
+    finally:
+        conn.close()
+
+def get_telegram_settings(email):
+    """Load saved Telegram alert configuration for a user."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT telegram_bot_token, telegram_chat_id, telegram_enabled FROM users WHERE email = ?",
+            (email,)
+        )
+        row = cursor.fetchone()
+        if row:
+            return {
+                'bot_token': row[0] or '',
+                'chat_id': row[1] or '',
+                'enabled': row[2] == '1'
+            }
+        return {'bot_token': '', 'chat_id': '', 'enabled': False}
+    except Exception:
+        return {'bot_token': '', 'chat_id': '', 'enabled': False}
     finally:
         conn.close()
 
