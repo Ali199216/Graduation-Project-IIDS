@@ -404,11 +404,11 @@ if st.session_state.get('authenticated', False):
             
             if _tg_token and _tg_chat:
                 if st.button('TEST CONNECTION', key='btn_tg_test', use_container_width=True):
-                    _test_ok = send_test_message()
+                    _test_ok, _msg = send_test_message(_tg_token, _tg_chat)
                     if _test_ok:
-                        st.success('Connected! Check Telegram.')
+                        st.success(_msg)
                     else:
-                        st.error('Failed. Verify Token & Chat ID.')
+                        st.error(_msg)
                 
                 # Status indicator
                 if is_telegram_configured():

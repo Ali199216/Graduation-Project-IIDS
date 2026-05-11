@@ -140,19 +140,67 @@ def send_scan_summary(total_flows, total_threats, total_blocked, attack_counts, 
     return send_telegram_message(message)
 
 
-def send_test_message():
-    """Send a test message to verify the Telegram configuration."""
+def send_test_message(token=None, chat_id=None):
+    """Send a test message to verify the Telegram configuration.
+    
+    If token and chat_id are passed, uses them directly (for testing settings before saving).
+    Otherwise, retrieves them from session state.
+    Returns (success, message_string).
+    """
+    if token is None or chat_id is None:
+        token, chat_id, enabled = _get_telegram_config()
+        
+    token = (token or '').strip()
+    chat_id = (chat_id or '').strip()
+    
+    if not token or not chat_id:
+        return False, "Bot Token or Chat ID is empty. Please enter both."
+        
+    # Step 1: Validate Bot Token via getMe
+    url_me = f"https://api.telegram.org/bot{token}/getMe"
+    try:
+        res_me = requests.get(url_me, timeout=5)
+        if res_me.status_code != 200:
+            return False, "Invalid Bot Token. Please check the token format from @BotFather."
+    except Exception as e:
+        return False, f"Connection Timeout/Error: Cannot reach Telegram API. Check your internet connection or firewall. ({str(e)})"
+        
+    # Step 2: Send test message
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     message = (
-        f"\u2705 <b>IIDS Telegram Alert - Connection Test</b>\n"
+        f"✅ <b>IIDS Telegram Connection Test</b>\n"
         f"{'=' * 30}\n\n"
         f"Your IIDS Intelligence Terminal is now\n"
         f"connected to this Telegram chat.\n\n"
-        f"\U0001F6E1\uFE0F You will receive:\n"
-        f"    \u2022 Real-time CRITICAL threat alerts\n"
-        f"    \u2022 Post-scan summary reports\n\n"
-        f"\U0001F552 <code>{now}</code>\n"
+        f"⚙️ <b>Operator Laptop:</b> Active Connection\n"
+        f"📅 <b>Timestamp:</b> <code>{now}</code>\n"
         f"{'=' * 30}\n"
         f"<b>IIDS Intelligence Terminal</b>"
     )
-    return send_telegram_message(message)
+    
+    url_send = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+    
+    try:
+        res_send = requests.post(url_send, json=payload, timeout=5)
+        if res_send.status_code == 200:
+            return True, "Connected! Check Telegram."
+        else:
+            try:
+                resp_json = res_send.json()
+                desc = resp_json.get('description', res_send.text)
+            except Exception:
+                desc = res_send.text
+                
+            if "chat not found" in desc.lower():
+                return False, f"Chat ID not found. Ensure Chat ID '{chat_id}' is correct and you have started the bot by pressing 'START' in Telegram."
+            elif "bot was blocked" in desc.lower():
+                return False, "The bot was blocked by the user. Please unblock the bot on Telegram and try again."
+            return False, f"Telegram API error: {desc}"
+    except Exception as e:
+        return False, f"Failed to send test message: Connection timeout. ({str(e)})"
