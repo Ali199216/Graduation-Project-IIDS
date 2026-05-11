@@ -114,6 +114,9 @@ class UnifiedCursor:
     def __iter__(self):
         return iter(self.cursor)
 
+    def __getattr__(self, name):
+        return getattr(self.cursor, name)
+
 
 class UnifiedConnection:
     """A wrapper for database connections to unify SQLite and PostgreSQL behaviors."""
@@ -150,6 +153,9 @@ class UnifiedConnection:
 
     def close(self):
         self.conn.close()
+
+    def __getattr__(self, name):
+        return getattr(self.conn, name)
 
     def execute(self, query, params=None):
         cur = self.cursor()
