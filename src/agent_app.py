@@ -30,6 +30,7 @@ import db_utils
 from visuals import render_visualizations, render_global_threat_map, render_top_countries, render_historical_threat_map
 from explain_utils import explain_prediction
 from telegram_utils import is_telegram_configured, send_critical_alert, send_scan_summary, send_test_message
+from voice_alert import voice_alert
 
 db_utils.init_db()
 
@@ -420,6 +421,14 @@ if st.session_state.get('authenticated', False):
             _u_email_tg = st.session_state.get('user_email', '')
             if _u_email_tg:
                 db_utils.save_telegram_settings(_u_email_tg, st.session_state.get('telegram_bot_token', ''), st.session_state.get('telegram_chat_id', ''), False)
+
+        # ---- VOICE ALERT TOGGLE ----
+        st.markdown('<div class="sidebar-header-clean">VOICE ALERTS</div>', unsafe_allow_html=True)
+        st.session_state["voice_enabled"] = st.toggle(
+            "\U0001f50a تنبيه صوتي",
+            value=st.session_state.get("voice_enabled", True),
+            key="voice_toggle_ctrl"
+        )
 
         st.markdown('<div class="sidebar-header-clean">SESSION HISTORY</div>', unsafe_allow_html=True)
 
@@ -3430,6 +3439,13 @@ with tab_corporate:
                                 db_utils.block_ip_db(src_ip, user_email=_u_email)
                                 st.session_state.blocked_ips.add(src_ip)
                                 assets_shielded += 1
+                                
+                                # ---- ARABIC VOICE ALERT (CSV scan only) ----
+                                if st.session_state.get("voice_enabled", True):
+                                    try:
+                                        voice_alert(attack_type=attack_name, ip=src_ip)
+                                    except Exception:
+                                        pass
                                 
                             cmd_logs.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [INFO] Sending BLOCK command for IP {src_ip}... [SUCCESS]")
                                 
