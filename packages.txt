@@ -1,0 +1,4 @@
+libasound2-dev
+python3-dev
+libportaudio2
+ffmpeg

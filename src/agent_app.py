@@ -45,12 +45,6 @@ st.set_page_config(
 st.markdown("""
 <style>
     /* Obsidian Black & Neon Cyan Core Theme */
-    .stApp {
-        background-image: url('file/c:/Users/ELZAHBIA/GRADUATION/ali_pro-main/network_intrusion_agent_v2/assets/shield_bg.png');
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-    }
     
     /* Center the layout to 1200px for a balanced dashboard feel */
     .block-container {
