@@ -30,7 +30,7 @@ import db_utils
 from visuals import render_visualizations, render_global_threat_map, render_top_countries, render_historical_threat_map
 from explain_utils import explain_prediction
 from telegram_utils import is_telegram_configured, send_critical_alert, send_scan_summary, send_test_message
-from voice_alert import voice_alert
+from voice_alert import voice_alert, get_voice_alert_html
 
 db_utils.init_db()
 
@@ -3335,6 +3335,8 @@ with tab_corporate:
                     ph_feed = st.empty()
                 with log_col:
                     ph_cmd_log = st.empty()
+                
+                ph_audio = st.empty() # Placeholder for browser-side audio alerts
                     
                 total_rows = len(df_upload)
                 malicious_added = 0
@@ -3409,8 +3411,8 @@ with tab_corporate:
                             db_utils.save_attack_to_db(alert, user_email=_u_email)
                             st.session_state.alerts.insert(0, alert.copy())
                             
-                            # ---- TELEGRAM ALERT (CRITICAL only to avoid spam) ----
-                            if severity == "CRITICAL" and is_telegram_configured():
+                            # ---- TELEGRAM ALERT (CRITICAL/HIGH) ----
+                            if severity in ["CRITICAL", "HIGH"] and is_telegram_configured():
                                 try:
                                     send_critical_alert(alert)
                                 except Exception:
@@ -3437,7 +3439,12 @@ with tab_corporate:
                                 # ---- ARABIC VOICE ALERT (CSV scan only) ----
                                 if st.session_state.get("voice_enabled", True):
                                     try:
+                                        # Server hardware playback (if local)
                                         voice_alert(attack_type=attack_name, ip=src_ip)
+                                        # Browser-side playback (for cloud/HF)
+                                        audio_html = get_voice_alert_html(attack_type=attack_name, ip=src_ip)
+                                        if audio_html:
+                                            ph_audio.markdown(audio_html, unsafe_allow_html=True)
                                     except Exception:
                                         pass
                                 

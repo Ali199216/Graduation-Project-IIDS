@@ -40,7 +40,7 @@ def send_telegram_message(text, parse_mode="HTML"):
     }
     
     try:
-        response = requests.post(url, json=payload, timeout=5)
+        response = requests.post(url, json=payload, timeout=15)
         return response.status_code == 200
     except Exception as e:
         print(f"[!] Telegram send error: {e}")
@@ -159,7 +159,7 @@ def send_test_message(token=None, chat_id=None):
     # Step 1: Validate Bot Token via getMe
     url_me = f"https://api.telegram.org/bot{token}/getMe"
     try:
-        res_me = requests.get(url_me, timeout=5)
+        res_me = requests.get(url_me, timeout=15)
         if res_me.status_code != 200:
             return False, "Invalid Bot Token. Please check the token format from @BotFather."
     except Exception as e:
@@ -187,7 +187,7 @@ def send_test_message(token=None, chat_id=None):
     }
     
     try:
-        res_send = requests.post(url_send, json=payload, timeout=5)
+        res_send = requests.post(url_send, json=payload, timeout=15)
         if res_send.status_code == 200:
             return True, "Connected! Check Telegram."
         else:

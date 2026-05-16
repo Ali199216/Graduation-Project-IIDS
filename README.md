@@ -1,3 +1,13 @@
+---
+title: IIDS Intelligence Terminal
+emoji: 🛡️
+colorFrom: blue
+colorTo: indigo
+sdk: streamlit
+app_file: src/agent_app.py
+pinned: false
+---
+
 # 🛡️ Intelligent Intrusion Detection System (IIDS)
 
 <div align="center">

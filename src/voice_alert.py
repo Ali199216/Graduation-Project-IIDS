@@ -8,6 +8,7 @@ import threading
 import tempfile
 import time
 import os
+import base64
 
 # ── Arabic number words mapping ──
 _ONES = {
@@ -121,7 +122,35 @@ def speak(text: str):
     t.start()
 
 
+def get_voice_alert_html(attack_type: str, ip: str) -> str:
+    """Generate a hidden HTML audio tag with base64 data for auto-playback in browser."""
+    message = build_message(attack_type, ip)
+    
+    tmp_path = None
+    try:
+        from gtts import gTTS
+        tts = gTTS(text=message, lang="ar", slow=False)
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".mp3")
+        os.close(tmp_fd)
+        tts.save(tmp_path)
+        
+        with open(tmp_path, "rb") as f:
+            data = f.read()
+            b64 = base64.b64encode(data).decode()
+            
+        # Return hidden audio with autoplay
+        # Note: Modern browsers may block autoplay unless user interacted with page.
+        return f'<audio autoplay src="data:audio/mp3;base64,{b64}" style="display:none;"></audio>'
+    except Exception as e:
+        print(f"[IIDS Voice Alert HTML] Error: {e}")
+        return ""
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try: os.remove(tmp_path)
+            except: pass
+
+
 def voice_alert(attack_type: str, ip: str):
-    """Main entry point: build Arabic message and speak it in background."""
+    """Main entry point: build Arabic message and speak it in background (Server hardware)."""
     message = build_message(attack_type, ip)
     speak(message)
