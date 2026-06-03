@@ -320,6 +320,17 @@ def init_db():
         )
     ''')
 
+    # 7. Create chat_history_sessions table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chat_history_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_email TEXT,
+            session_title TEXT,
+            timestamp TEXT,
+            messages_json TEXT
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -814,5 +825,89 @@ def get_daily_threat_counts():
                     'types': row[2] if row[2] else ''
                 }
         return result
+    finally:
+        conn.close()
+
+
+def save_chat_session_db(user_email, session_title, messages_list, session_id=None):
+    """Save or update a chat session in the database."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        import json
+        messages_json = json.dumps(messages_list)
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        if session_id is not None:
+            # Update existing session
+            cursor.execute('''
+                UPDATE chat_history_sessions
+                SET session_title = ?, timestamp = ?, messages_json = ?
+                WHERE id = ? AND user_email = ?
+            ''', (session_title, ts, messages_json, session_id, user_email))
+            conn.commit()
+            return session_id
+        else:
+            # Create new session
+            cursor.execute('''
+                INSERT INTO chat_history_sessions (user_email, session_title, timestamp, messages_json)
+                VALUES (?, ?, ?, ?)
+            ''', (user_email, session_title, ts, messages_json))
+            conn.commit()
+            return cursor.lastrowid
+    finally:
+        conn.close()
+
+
+def get_chat_sessions_db(user_email):
+    """Retrieve all chat sessions for a given user, ordered by timestamp desc."""
+    conn = get_db_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, session_title, timestamp
+            FROM chat_history_sessions
+            WHERE user_email = ?
+            ORDER BY timestamp DESC
+        ''', (user_email,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def get_chat_session_by_id_db(session_id):
+    """Retrieve a single chat session by its ID."""
+    conn = get_db_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM chat_history_sessions
+            WHERE id = ?
+        ''', (session_id,))
+        row = cursor.fetchone()
+        if row:
+            res = dict(row)
+            import json
+            try:
+                res['messages'] = json.loads(res['messages_json'])
+            except Exception:
+                res['messages'] = []
+            return res
+        return None
+    finally:
+        conn.close()
+
+
+def delete_chat_session_db(session_id):
+    """Delete a chat session by ID."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM chat_history_sessions WHERE id = ?', (session_id,))
+        conn.commit()
+        return True
     finally:
         conn.close()
