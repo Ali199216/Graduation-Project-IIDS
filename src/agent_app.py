@@ -264,6 +264,32 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(0, 212, 255, 0.2);
         animation: toast-in-out 4s ease-in-out forwards;
     }
+
+    /* Sleek Logout Button in Sidebar */
+    button[aria-label="Log Out"] {
+        background: rgba(255, 77, 77, 0.05) !important;
+        border: 1px solid rgba(255, 77, 77, 0.2) !important;
+        border-radius: 8px !important;
+        color: #ff4d4d !important;
+        font-family: 'Roboto Mono', monospace !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        letter-spacing: 1.5px !important;
+        padding: 10px 16px !important;
+        transition: all 0.3s ease !important;
+        margin-top: 30px !important;
+        width: 100% !important;
+    }
+    button[aria-label="Log Out"]:hover {
+        background: rgba(255, 77, 77, 0.15) !important;
+        border-color: #ff4d4d !important;
+        box-shadow: 0 0 15px rgba(255, 77, 77, 0.3) !important;
+        color: #ffffff !important;
+        transform: translateY(-2px) !important;
+    }
+    button[aria-label="Log Out"]:active {
+        transform: translateY(0px) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -315,11 +341,6 @@ if st.session_state.get('authenticated', False):
             st.session_state.is_running = False
             st.rerun()
         if st.button('REFRESH SYSTEM DATA', key='btn_ref_ctrl', use_container_width=True):
-            st.rerun()
-        
-        st.markdown('<div class="sidebar-header-clean">SYSTEM TERMINATION</div>', unsafe_allow_html=True)
-        if st.button('LOGOUT SESSION', key='btn_logout_ctrl', use_container_width=True):
-            st.session_state.clear()
             st.rerun()
         
         st.markdown('<div class="sidebar-header-clean">SECURITY ACTIONS</div>', unsafe_allow_html=True)
@@ -448,6 +469,12 @@ if st.session_state.get('authenticated', False):
                 st.rerun()
         else:
             st.write('No saved sessions yet.')
+
+        # ── Sleek Logout Button at the end of the menu ──
+        st.markdown('<div style="margin-top: 40px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;"></div>', unsafe_allow_html=True)
+        if st.button('Log Out', key='btn_logout_sidebar_end', use_container_width=True):
+            st.session_state.clear()
+            st.rerun()
 
 # ---- Assets & Styling ----
 def get_base64_img(path):
@@ -973,6 +1000,178 @@ if not st.session_state.app_launched:
             st.session_state.app_launched = True
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
+
+    # ──────────────────────────────────────────────────────────
+    #  PREMIUM LANDING PAGE INFO SECTION
+    # ──────────────────────────────────────────────────────────
+    _landing_css = """<style>
+.landing-section { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+.landing-divider { width: 120px; height: 3px; background: linear-gradient(90deg, transparent, #00D4FF, transparent); margin: 60px auto 50px auto; border-radius: 2px; box-shadow: 0 0 20px rgba(0, 212, 255, 0.4); }
+.landing-section-title { text-align: center; font-family: 'Orbitron', sans-serif !important; font-weight: 900 !important; font-size: 28px !important; color: #FFFFFF !important; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 8px; text-shadow: 0 0 20px rgba(0, 212, 255, 0.5); animation: none !important; }
+.landing-section-subtitle { text-align: center; font-family: 'Roboto Mono', monospace !important; font-size: 14px !important; color: #8b949e !important; letter-spacing: 1px; margin-bottom: 40px; line-height: 1.6; }
+.about-hero-card { background: linear-gradient(145deg, rgba(0, 212, 255, 0.06), rgba(0, 0, 0, 0.8)); border: 1px solid rgba(0, 212, 255, 0.2); border-radius: 20px; padding: 50px 45px; margin-bottom: 30px; position: relative; overflow: hidden; transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.about-hero-card::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 3px; background: linear-gradient(90deg, transparent, #00D4FF, #00FF41, #00D4FF, transparent); background-size: 200% 100%; animation: borderSlide 4s linear infinite; }
+@keyframes borderSlide { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.about-hero-card:hover { transform: translateY(-8px); border-color: #00D4FF; box-shadow: 0 20px 60px rgba(0, 212, 255, 0.15); }
+.about-hero-text { color: #c9d1d9 !important; font-family: 'Roboto Mono', monospace !important; font-size: 15px !important; line-height: 2 !important; text-align: center; }
+.about-hero-text strong { color: #00D4FF !important; font-weight: 900; }
+.goals-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+@media (max-width: 768px) { .goals-grid { grid-template-columns: 1fr; } }
+.goal-card { background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(0, 212, 255, 0.12); border-radius: 16px; padding: 35px 25px; text-align: center; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: relative; overflow: hidden; }
+.goal-card::after { content: ""; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 0; height: 2px; background: #00D4FF; transition: width 0.4s ease; }
+.goal-card:hover::after { width: 80%; }
+.goal-card:hover { transform: translateY(-10px) scale(1.03); border-color: #00D4FF; box-shadow: 0 15px 45px rgba(0, 212, 255, 0.2); background: rgba(0, 212, 255, 0.05); }
+.goal-icon { font-size: 42px; margin-bottom: 18px; display: block; filter: drop-shadow(0 0 10px rgba(0, 212, 255, 0.5)); }
+.goal-title { color: #FFFFFF !important; font-family: 'Orbitron', sans-serif !important; font-weight: 900 !important; font-size: 13px !important; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }
+.goal-desc { color: #8b949e !important; font-family: 'Roboto Mono', monospace !important; font-size: 12px !important; line-height: 1.7 !important; }
+.features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+@media (max-width: 768px) { .features-grid { grid-template-columns: 1fr; } }
+.feature-card { background: linear-gradient(160deg, rgba(0, 212, 255, 0.04), rgba(0, 0, 0, 0.7)); border: 1px solid rgba(0, 212, 255, 0.1); border-radius: 16px; padding: 30px 22px; text-align: center; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: relative; }
+.feature-card:hover { transform: translateY(-8px) scale(1.02); border-color: #00D4FF; box-shadow: 0 12px 40px rgba(0, 212, 255, 0.2); }
+.feature-icon { width: 60px; height: 60px; border-radius: 50%; background: rgba(0, 212, 255, 0.08); border: 2px solid rgba(0, 212, 255, 0.3); display: flex; align-items: center; justify-content: center; margin: 0 auto 18px auto; font-size: 26px; transition: all 0.3s ease; box-shadow: 0 0 15px rgba(0, 212, 255, 0.1); }
+.feature-card:hover .feature-icon { background: rgba(0, 212, 255, 0.2); border-color: #00D4FF; box-shadow: 0 0 25px rgba(0, 212, 255, 0.4); transform: scale(1.1); }
+.feature-title { color: #FFFFFF !important; font-family: 'Orbitron', sans-serif !important; font-weight: 900 !important; font-size: 12px !important; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 10px; }
+.feature-desc { color: #8b949e !important; font-family: 'Roboto Mono', monospace !important; font-size: 11px !important; line-height: 1.6 !important; }
+.services-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; margin-bottom: 30px; }
+@media (max-width: 768px) { .services-grid { grid-template-columns: 1fr; } }
+.service-card { background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(0, 212, 255, 0.1); border-left: 4px solid #00D4FF; border-radius: 14px; padding: 30px 28px; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: flex; align-items: flex-start; gap: 20px; }
+.service-card:hover { transform: translateY(-6px) translateX(5px); border-color: #00D4FF; box-shadow: 0 15px 50px rgba(0, 212, 255, 0.15); background: rgba(0, 212, 255, 0.04); }
+.service-icon-box { min-width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(0, 212, 255, 0.03)); border: 1px solid rgba(0, 212, 255, 0.25); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; transition: all 0.3s ease; }
+.service-card:hover .service-icon-box { background: rgba(0, 212, 255, 0.25); box-shadow: 0 0 20px rgba(0, 212, 255, 0.3); }
+.service-info { flex: 1; }
+.service-title { color: #FFFFFF !important; font-family: 'Orbitron', sans-serif !important; font-weight: 900 !important; font-size: 13px !important; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
+.service-desc { color: #8b949e !important; font-family: 'Roboto Mono', monospace !important; font-size: 12px !important; line-height: 1.7 !important; }
+.service-badge { display: inline-block; background: rgba(0, 212, 255, 0.1); border: 1px solid rgba(0, 212, 255, 0.3); color: #00D4FF !important; font-family: 'Orbitron', sans-serif !important; font-size: 9px !important; font-weight: 700; padding: 3px 10px; border-radius: 20px; letter-spacing: 1px; margin-top: 10px; text-transform: uppercase; }
+.landing-footer { text-align: center; padding: 40px 0 20px 0; border-top: 1px solid rgba(0, 212, 255, 0.1); margin-top: 40px; }
+.landing-footer-text { color: #30363d !important; font-family: 'Roboto Mono', monospace !important; font-size: 11px !important; letter-spacing: 1px; }
+.landing-footer-brand { color: #00D4FF !important; font-family: 'Orbitron', sans-serif !important; font-weight: 900 !important; font-size: 13px !important; letter-spacing: 3px; margin-bottom: 8px; text-shadow: 0 0 10px rgba(0, 212, 255, 0.3); }
+</style>"""
+    st.markdown(_landing_css, unsafe_allow_html=True)
+
+    _landing_html = """<div class="landing-section">
+<div class="landing-divider"></div>
+<div class="landing-section-title">About IIDS</div>
+<div class="landing-section-subtitle">Next-Generation Cyber Defense Intelligence Platform</div>
+<div class="about-hero-card">
+<div class="about-hero-text">
+<strong>IIDS (Intelligent Intrusion Detection System)</strong> is a state-of-the-art, AI-powered cybersecurity platform designed to <strong>detect, classify, and respond</strong> to network intrusions in real time. Built on advanced <strong>machine learning models</strong> and <strong>deep neural networks</strong>, IIDS provides enterprise-grade threat intelligence that transforms raw network traffic data into <strong>actionable security insights</strong>.<br><br>
+The system leverages a <strong>multi-stage detection pipeline</strong> — combining anomaly detection, binary classification, and multi-class attack identification — to achieve <strong>unparalleled accuracy</strong> in distinguishing legitimate traffic from sophisticated cyber threats across <strong>9+ attack categories</strong>.
+</div>
+</div>
+<div class="landing-divider"></div>
+<div class="landing-section-title">Goals &amp; Vision</div>
+<div class="landing-section-subtitle">Our mission to redefine network security</div>
+<div class="goals-grid">
+<div class="goal-card">
+<span class="goal-icon">🎯</span>
+<div class="goal-title">Proactive Defense</div>
+<div class="goal-desc">Shift from reactive incident response to proactive threat hunting with AI-driven predictive analytics that detect threats before damage occurs.</div>
+</div>
+<div class="goal-card">
+<span class="goal-icon">⚡</span>
+<div class="goal-title">Real-Time Response</div>
+<div class="goal-desc">Minimize the window of exposure with sub-second detection and automated response mechanisms that neutralize threats instantly.</div>
+</div>
+<div class="goal-card">
+<span class="goal-icon">🧠</span>
+<div class="goal-title">Explainable AI</div>
+<div class="goal-desc">Provide transparent, human-readable explanations for every detection decision, empowering analysts with full understanding of AI reasoning.</div>
+</div>
+<div class="goal-card">
+<span class="goal-icon">🌍</span>
+<div class="goal-title">Global Intelligence</div>
+<div class="goal-desc">Correlate threat data with global geo-intelligence to map attack origins and identify coordinated campaign patterns worldwide.</div>
+</div>
+<div class="goal-card">
+<span class="goal-icon">🔒</span>
+<div class="goal-title">Zero-Trust Security</div>
+<div class="goal-desc">Implement zero-trust architecture principles where every network flow is verified and validated regardless of source or destination.</div>
+</div>
+<div class="goal-card">
+<span class="goal-icon">📊</span>
+<div class="goal-title">Actionable Analytics</div>
+<div class="goal-desc">Transform complex network data into clear, actionable dashboards that enable rapid decision-making at every security tier.</div>
+</div>
+</div>
+<div class="landing-divider"></div>
+<div class="landing-section-title">Key Features</div>
+<div class="landing-section-subtitle">Advanced capabilities powering your defense</div>
+<div class="features-grid">
+<div class="feature-card">
+<div class="feature-icon">🤖</div>
+<div class="feature-title">Multi-Stage AI Pipeline</div>
+<div class="feature-desc">3-stage detection: Anomaly scoring → Binary classification → Multi-class attack identification with ensemble ML models.</div>
+</div>
+<div class="feature-card">
+<div class="feature-icon">💬</div>
+<div class="feature-title">AI Chat Assistant</div>
+<div class="feature-desc">Integrated conversational AI agent for natural-language threat queries, log analysis, and security recommendations.</div>
+</div>
+<div class="feature-card">
+<div class="feature-icon">🗺️</div>
+<div class="feature-title">Global Threat Map</div>
+<div class="feature-desc">Interactive geospatial visualization of attack origins with real-time plotting on a 3D global intelligence map.</div>
+</div>
+<div class="feature-card">
+<div class="feature-icon">🔔</div>
+<div class="feature-title">Telegram Alerts</div>
+<div class="feature-desc">Instant critical threat notifications via Telegram bot integration with customizable alert thresholds and summaries.</div>
+</div>
+<div class="feature-card">
+<div class="feature-icon">🛡️</div>
+<div class="feature-title">IP Blocking Engine</div>
+<div class="feature-desc">Automated and manual IP blocking with persistent blocklist registry and emergency lockdown capabilities.</div>
+</div>
+<div class="feature-card">
+<div class="feature-icon">📄</div>
+<div class="feature-title">PDF Report Export</div>
+<div class="feature-desc">Generate comprehensive, professionally formatted PDF security reports with charts, statistics, and threat summaries.</div>
+</div>
+</div>
+<div class="landing-divider"></div>
+<div class="landing-section-title">Services</div>
+<div class="landing-section-subtitle">Comprehensive security solutions at your fingertips</div>
+<div class="services-grid">
+<div class="service-card">
+<div class="service-icon-box">🔍</div>
+<div class="service-info">
+<div class="service-title">Network Traffic Analysis</div>
+<div class="service-desc">Upload and analyze network traffic captures (CSV/PCAP) through our multi-model AI pipeline. Get instant classification across 9+ attack categories with confidence scores and anomaly ratings.</div>
+<div class="service-badge">Core Service</div>
+</div>
+</div>
+<div class="service-card">
+<div class="service-icon-box">📡</div>
+<div class="service-info">
+<div class="service-title">Real-Time Monitoring</div>
+<div class="service-desc">Continuous, live monitoring of network flows with automated threat detection, severity classification, and instant alert dispatching through multiple channels.</div>
+<div class="service-badge">Live Detection</div>
+</div>
+</div>
+<div class="service-card">
+<div class="service-icon-box">🧪</div>
+<div class="service-info">
+<div class="service-title">Manual Packet Analysis</div>
+<div class="service-desc">Deep-dive into individual network packets with feature-level inspection, XAI explanations, and detailed breakdowns of every detection decision made by the AI.</div>
+<div class="service-badge">Advanced</div>
+</div>
+</div>
+<div class="service-card">
+<div class="service-icon-box">📈</div>
+<div class="service-info">
+<div class="service-title">Threat Intelligence Dashboard</div>
+<div class="service-desc">Rich visual analytics with attack distribution charts, severity timelines, protocol analysis, geo-intelligence maps, and historical session comparison tools.</div>
+<div class="service-badge">Analytics</div>
+</div>
+</div>
+</div>
+<div class="landing-footer">
+<div class="landing-footer-brand">IIDS INTELLIGENCE TERMINAL</div>
+<div class="landing-footer-text">Intelligent Intrusion Detection System · AI-Powered Cyber Defense · All Rights Reserved © 2026</div>
+</div>
+</div>"""
+    st.markdown(_landing_html, unsafe_allow_html=True)
+
     st.stop()
 
 
@@ -1230,6 +1429,83 @@ if not st.session_state.authenticated:
         <h1 style="font-size: 3rem; color: #FFFFFF; font-weight: 900; letter-spacing: 2px; line-height: 1.2; animation: glowPulse 4s infinite;">IIDS INTELLIGENCE TERMINAL</h1>
         <p style="color: #00D4FF; font-size: 1rem; margin-top: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px;">Authenticated Personnel Only</p>
     </div>
+    
+    <style>
+    /* Nested columns block style for social buttons */
+    div[data-testid="column"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"] button {
+        background-color: rgba(255, 255, 255, 0.03) !important;
+        border: 1px solid rgba(0, 212, 255, 0.2) !important;
+        border-radius: 12px !important;
+        color: #e6edf3 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.5px !important;
+        height: 48px !important;
+        padding: 0px 16px 0px 46px !important;
+        text-align: left !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        background-repeat: no-repeat !important;
+        background-position: 18px center !important;
+        background-size: 18px 18px !important;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+        backdrop-filter: blur(10px) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+    }
+    
+    div[data-testid="column"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"] button p {
+        margin: 0 !important;
+        text-align: left !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+    }
+
+    /* Hover States & Custom Brand Borders/Glows */
+    div[data-testid="column"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"] button:hover {
+        transform: translateY(-3px) !important;
+        background-color: rgba(255, 255, 255, 0.08) !important;
+        color: #ffffff !important;
+    }
+
+    /* Google Column 1 */
+    div[data-testid="column"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(1) button {
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%234285F4' d='M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.69a5.74 5.74 0 0 1-2.49 3.77v3.12h4.01c2.34-2.15 3.53-5.32 3.53-8.74z'/><path fill='%2334A853' d='M12 24c3.24 0 5.95-1.08 7.93-2.91l-4.01-3.12c-1.12.75-2.54 1.19-3.92 1.19-3.02 0-5.58-2.04-6.49-4.78H1.39v3.23C3.38 21.72 7.42 24 12 24z'/><path fill='%23FBBC05' d='M5.51 14.38A7.2 7.2 0 0 1 5.1 12c0-.82.14-1.62.41-2.38V6.39H1.39A11.94 11.94 0 0 0 0 12c0 2.05.52 4 1.39 5.61l4.12-3.23z'/><path fill='%23EA4335' d='M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43C17.95 1.19 15.24 0 12 0 7.42 0 3.38 2.28 1.39 6.39l4.12 3.23c.91-2.74 3.47-4.78 6.49-4.78z'/></svg>") !important;
+    }
+    div[data-testid="column"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(1) button:hover {
+        border-color: rgba(66, 133, 244, 0.6) !important;
+        box-shadow: 0 8px 25px rgba(66, 133, 244, 0.3) !important;
+        background-color: rgba(66, 133, 244, 0.05) !important;
+    }
+
+    /* Facebook Column 2 */
+    div[data-testid="column"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(2) button {
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%231877F2' d='M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z'/></svg>") !important;
+    }
+    div[data-testid="column"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(2) button:hover {
+        border-color: rgba(24, 119, 242, 0.6) !important;
+        box-shadow: 0 8px 25px rgba(24, 119, 242, 0.3) !important;
+        background-color: rgba(24, 119, 242, 0.05) !important;
+    }
+
+    /* X / Twitter Column 3 */
+    div[data-testid="column"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(3) button {
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23FFFFFF' d='M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z'/></svg>") !important;
+        background-size: 16px 16px !important;
+        background-position: 19px center !important;
+    }
+    div[data-testid="column"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(3) button:hover {
+        border-color: rgba(255, 255, 255, 0.4) !important;
+        box-shadow: 0 8px 25px rgba(255, 255, 255, 0.2) !important;
+        background-color: rgba(255, 255, 255, 0.05) !important;
+    }
+
+    div[data-testid="column"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"] button:active {
+        transform: translateY(-1px) !important;
+    }
+    </style>
     """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -1273,6 +1549,28 @@ if not st.session_state.authenticated:
             if st.button("Sign Up", use_container_width=True, type="tertiary"):
                 st.session_state.current_page = "register"
                 st.rerun()
+
+            # ── Social Login Section ──
+            st.markdown("""<div style="display: flex; align-items: center; gap: 15px; margin: 25px 0 20px 0;">
+<div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.3), transparent);"></div>
+<div style="color: #8b949e; font-family: 'Roboto Mono', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; white-space: nowrap;">Or continue with</div>
+<div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.3), transparent);"></div>
+</div>""", unsafe_allow_html=True)
+
+            st.markdown('<div class="social-login-container">', unsafe_allow_html=True)
+            sc1, sc2, sc3 = st.columns(3)
+            with sc1:
+                google_clicked = st.button("Google", key="btn_social_google", use_container_width=True)
+            with sc2:
+                fb_clicked = st.button("Facebook", key="btn_social_fb", use_container_width=True)
+            with sc3:
+                tw_clicked = st.button("X / Twitter", key="btn_social_tw", use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            if google_clicked or fb_clicked or tw_clicked:
+                provider = "Google" if google_clicked else ("Facebook" if fb_clicked else "X / Twitter")
+                st.toast(f"🔗 {provider} OAuth requires server-side configuration. Contact your administrator.", icon="ℹ️")
+
             st.markdown('</div>', unsafe_allow_html=True)
             
         elif st.session_state.current_page == "register":
@@ -1302,6 +1600,27 @@ if not st.session_state.authenticated:
                         else:
                             st.error(msg)
                             
+            # ── Social Register Section ──
+            st.markdown("""<div style="display: flex; align-items: center; gap: 15px; margin: 25px 0 20px 0;">
+<div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.3), transparent);"></div>
+<div style="color: #8b949e; font-family: 'Roboto Mono', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; white-space: nowrap;">Or register with</div>
+<div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.3), transparent);"></div>
+</div>""", unsafe_allow_html=True)
+
+            st.markdown('<div class="social-login-container">', unsafe_allow_html=True)
+            r_sc1, r_sc2, r_sc3 = st.columns(3)
+            with r_sc1:
+                reg_google_clicked = st.button("Google", key="btn_social_reg_google", use_container_width=True)
+            with r_sc2:
+                reg_fb_clicked = st.button("Facebook", key="btn_social_reg_fb", use_container_width=True)
+            with r_sc3:
+                reg_tw_clicked = st.button("X / Twitter", key="btn_social_reg_tw", use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            if reg_google_clicked or reg_fb_clicked or reg_tw_clicked:
+                provider = "Google" if reg_google_clicked else ("Facebook" if reg_fb_clicked else "X / Twitter")
+                st.toast(f"🔗 {provider} OAuth requires server-side configuration. Contact your administrator.", icon="ℹ️")
+
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("<div style='text-align: center; color: #8b949e; font-size: 14px; margin-bottom: 10px;'>Already have an account?</div>", unsafe_allow_html=True)
             if st.button("Log In", use_container_width=True, type="tertiary"):
