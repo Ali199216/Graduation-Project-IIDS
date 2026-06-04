@@ -3823,7 +3823,341 @@ with tab_corporate:
         st.text_input("Company Endpoint URL", placeholder="https://api.company.com/v1/sec-alerts", key="corp_url")
     with c_api2:
         st.text_input("API Auth Key", type="password", placeholder="SEC-XXXX-XXXX", key="corp_key")
+    
+    # API Link test button
+    corp_url = st.session_state.get("corp_url", "")
+    corp_key = st.session_state.get("corp_key", "")
+    if corp_url:
+        if st.button("🔌 TEST API CONNECTION", key="btn_test_api_conn", use_container_width=True):
+            import requests
+            test_payload = {
+                "event": "connection_test",
+                "status": "linked",
+                "message": "IIDS Security Terminal successfully linked to corporate endpoint.",
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            headers = {
+                "Authorization": f"Bearer {corp_key}" if corp_key else "",
+                "Content-Type": "application/json"
+            }
+            try:
+                r = requests.post(corp_url, json=test_payload, headers=headers, timeout=5)
+                if r.status_code in [200, 201, 202]:
+                    st.success(f"✔️ Connection Linked Successfully! Server responded with status code {r.status_code}.")
+                else:
+                    st.warning(f"⚠️ Sent test payload, but server returned status {r.status_code}.")
+            except Exception as e:
+                st.error(f"❌ Connection Failed: {str(e)}")
+                
     st.markdown("</div>", unsafe_allow_html=True)
+
+    # Monitoring Data Source Mode Selector
+    scan_mode = st.radio("Select Monitoring Data Source", ["📁 Local File Upload (CSV)", "🌐 Real-Time Remote API Streaming (SIEM)"], horizontal=True, key="mon_data_src")
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    if scan_mode == "🌐 Real-Time Remote API Streaming (SIEM)":
+        # ── SIEM Remote Streaming mode ──
+        st.markdown("""
+        <div style="background: rgba(0, 212, 255, 0.02); border: 1px solid rgba(0, 212, 255, 0.2); border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+            <div style="color: #00D4FF; font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 1px; margin-bottom: 15px;">
+                SIEM STREAMING CONTROLS
+            </div>
+            <p style="color: #8b949e; font-size: 13px; font-family: 'Roboto Mono', monospace;">
+                Connects directly to the company's live telemetry endpoints to poll network flows and evaluate threats in real-time.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        c_sim1, c_sim2 = st.columns([2, 1])
+        with c_sim1:
+            demo_sim = st.toggle("🔧 Run Demo Simulation Traffic (Simulate Live Attacks)", value=True, key="demo_sim", help="Generates mock live network traffic flows locally to test pipeline without a real endpoint.")
+        with c_sim2:
+            st.markdown("<div style='text-align: right; color: #8b949e; font-size: 12px;'>Source: Poll API / Mock Gen</div>", unsafe_allow_html=True)
+            
+        c_str_btn1, c_str_btn2 = st.columns(2)
+        with c_str_btn1:
+            if st.button("⚡ START SIEM LIVE STREAMING", key="btn_start_stream", type="primary", use_container_width=True):
+                st.session_state.api_streaming_active = True
+                st.session_state.stop_api_stream = False
+                st.rerun()
+        with c_str_btn2:
+            if st.button("🛑 STOP STREAMING", key="btn_stop_stream", use_container_width=True):
+                st.session_state.api_streaming_active = False
+                st.session_state.stop_api_stream = True
+                st.rerun()
+                
+        # Running the streaming dashboard
+        if st.session_state.get("api_streaming_active", False):
+            # Placeholders for UI elements
+            st.markdown("<h3 style='color: #00ff00; text-align: center; text-shadow: 0 0 15px rgba(0,255,0,0.8); letter-spacing: 3px;'>[ SIEM LIVE TELEMETRY STREAMING: ACTIVE ]</h3>", unsafe_allow_html=True)
+            
+            ph_audio = st.empty()
+            
+            m_col1, m_col2, m_col3 = st.columns(3)
+            ph_total_scanned = m_col1.empty()
+            ph_active_threats = m_col2.empty()
+            ph_blocked = m_col3.empty()
+            
+            st.markdown("####  Live Threat Radar")
+            ph_map = st.empty()
+            
+            st.markdown("####  Streaming Feed & Logs")
+            feed_col, log_col = st.columns([7, 3])
+            with feed_col:
+                ph_feed = st.empty()
+            with log_col:
+                ph_cmd_log = st.empty()
+                
+            import pydeck as pdk
+            _stable_view = pdk.ViewState(latitude=20.0, longitude=0.0, zoom=1, pitch=0)
+            
+            total_scanned = 0
+            total_threats = 0
+            total_blocked = 0
+            recent_flows = []
+            cmd_logs = []
+            live_alerts = []
+            _last_map_count = 0
+            
+            import time
+            import random
+            import datetime
+            
+            st.markdown("""
+            <style>
+                div[data-testid="stMetricValue"] > div,
+                div[data-testid="stMetricLabel"] > div > p {
+                    font-family: 'Roboto Mono', monospace !important;
+                    font-weight: bold !important;
+                    text-align: center !important;
+                }
+                div[data-testid="stMetricLabel"] > div > p { color: #FFFFFF !important; }
+                div[data-testid="metric-container"] {
+                    background-color: #0e1117 !important;
+                    padding: 15px !important;
+                    border-radius: 15px !important;
+                    border: 2px solid #444 !important;
+                    text-align: center !important;
+                }
+                div[data-testid="column"]:nth-of-type(1) div[data-testid="metric-container"] {
+                    border-color: #00D4FF !important;
+                    box-shadow: 0px 0px 15px rgba(0, 212, 255, 0.2) !important;
+                }
+                div[data-testid="column"]:nth-of-type(1) div[data-testid="stMetricValue"] > div { color: #00D4FF !important; }
+                div[data-testid="column"]:nth-of-type(2) div[data-testid="metric-container"] {
+                    border-color: #FF4B4B !important;
+                    box-shadow: 0px 0px 15px rgba(255, 75, 75, 0.3) !important;
+                }
+                div[data-testid="column"]:nth-of-type(2) div[data-testid="stMetricValue"] > div { color: #FF4B4B !important; }
+                div[data-testid="column"]:nth-of-type(3) div[data-testid="metric-container"] {
+                    border-color: #00FF41 !important;
+                    box-shadow: 0px 0px 15px rgba(0, 255, 65, 0.3) !important;
+                }
+                div[data-testid="column"]:nth-of-type(3) div[data-testid="stMetricValue"] > div { color: #00FF41 !important; }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            while st.session_state.get("api_streaming_active", False):
+                if st.session_state.get("stop_api_stream", False):
+                    break
+                    
+                flow_dict = None
+                if demo_sim:
+                    # Generate random network telemetry flow locally
+                    attack_type = random.choice([
+                        "Benign", "Benign", "Benign", 
+                        "DoS", "DDoS", "Brute Force", "Port Scan"
+                    ])
+                    src_ip = f"{random.randint(100, 200)}.{random.randint(10, 254)}.{random.randint(10, 254)}.{random.randint(1, 254)}" if attack_type != "Benign" else f"192.168.1.{random.randint(1, 254)}"
+                    dst_ip = "10.0.0.5"
+                    proto = random.choice([6, 17, 1])
+                    
+                    flow_dict = {
+                        "IPV4_SRC_ADDR": src_ip,
+                        "IPV4_DST_ADDR": dst_ip,
+                        "L4_SRC_PORT": random.randint(1024, 65535),
+                        "L4_DST_PORT": 80 if attack_type in ["DoS", "DDoS", "Benign"] else random.randint(21, 443),
+                        "PROTOCOL": proto,
+                        "IN_BYTES": random.randint(40, 5000) if attack_type == "Benign" else random.randint(50000, 1000000),
+                        "OUT_BYTES": random.randint(40, 5000),
+                        "IN_PKTS": random.randint(1, 100),
+                        "OUT_PKTS": random.randint(1, 100),
+                        "TCP_FLAGS": random.choice([2, 16, 24]),
+                        "FLOW_DURATION_MILLISECONDS": random.randint(10, 5000)
+                    }
+                else:
+                    if corp_url:
+                        try:
+                            import requests
+                            headers = {
+                                "Authorization": f"Bearer {corp_key}" if corp_key else "",
+                                "Accept": "application/json"
+                            }
+                            r = requests.get(corp_url, headers=headers, timeout=3)
+                            if r.status_code == 200:
+                                data = r.json()
+                                if isinstance(data, list) and len(data) > 0:
+                                    flow_dict = data[0]
+                                elif isinstance(data, dict):
+                                    flow_dict = data
+                        except Exception as e:
+                            cmd_logs.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [API-ERROR] Connection error: {str(e)}")
+                            
+                if flow_dict:
+                    try:
+                        df_flow = pd.DataFrame([flow_dict])
+                        from preprocessing import prepare_data_for_prediction
+                        df_flow = prepare_data_for_prediction(df_flow, FEATURES)
+                        x_input = clean_features(df_flow, FEATURES).values
+                        
+                        anomaly_score = float(-loaded_models.stage0.decision_function(x_input)[0])
+                        stage0_flag = anomaly_score >= ANOMALY_THRESHOLD
+                        
+                        if hasattr(loaded_models.stage1_xgb, "predict_proba"):
+                            malicious_prob = float(loaded_models.stage1_xgb.predict_proba(x_input)[0, 1])
+                        else:
+                            malicious_prob = float(loaded_models.stage1_xgb.predict(x_input)[0])
+                            
+                        stage1_flag = malicious_prob >= STAGE1_THRESHOLD
+                        is_malicious = stage0_flag or stage1_flag
+                        
+                        total_scanned += 1
+                        severity = "NORMAL"
+                        attack_name = "Benign"
+                        src_ip = str(flow_dict.get('IPV4_SRC_ADDR', "192.168.1.1"))
+                        
+                        if is_malicious:
+                            total_threats += 1
+                            try:
+                                attack_class_idx = loaded_models.stage2_xgb.predict(x_input)[0]
+                                attack_name = loaded_models.stage2_encoder.inverse_transform([attack_class_idx])[0]
+                            except Exception:
+                                attack_name = "Threat"
+                                
+                            severity = "CRITICAL" if malicious_prob > 0.85 else "HIGH"
+                            shap_explanation = "SIEM live streaming threat detected."
+                            
+                            alert = {
+                                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                "src_ip": src_ip,
+                                "dst_ip": str(flow_dict.get('IPV4_DST_ADDR', "10.0.0.1")),
+                                "attack_type": attack_name,
+                                "severity": severity,
+                                "anomaly_score": anomaly_score,
+                                "malicious_probability": malicious_prob,
+                                "details": f"Port {flow_dict.get('L4_SRC_PORT', 0)}->{flow_dict.get('L4_DST_PORT', 0)}, {int(flow_dict.get('IN_BYTES', 0))}B / {int(flow_dict.get('OUT_BYTES', 0))}B",
+                                "status": "ACTIVE",
+                                "shap_explanation": shap_explanation
+                            }
+                            
+                            _u_email = st.session_state.get('user_email', '')
+                            db_utils.save_attack_to_db(alert, user_email=_u_email)
+                            st.session_state.alerts.insert(0, alert.copy())
+                            
+                            if severity in ["CRITICAL", "HIGH"] and is_telegram_configured():
+                                try:
+                                    send_critical_alert(alert)
+                                except Exception:
+                                    pass
+                                    
+                            map_point = {
+                                'ip': alert.get('src_ip', ''),
+                                'attack_type': alert.get('attack_type', 'Unknown'),
+                                'lat': alert.get('latitude', random.uniform(20.0, 50.0)),
+                                'lon': alert.get('longitude', random.uniform(-120.0, 50.0)),
+                                'city': alert.get('city', 'N/A'),
+                                'country': alert.get('country', 'N/A'),
+                            }
+                            live_alerts.append(map_point)
+                            
+                            if src_ip not in st.session_state.blocked_ips:
+                                db_utils.block_ip_db(src_ip, user_email=_u_email)
+                                st.session_state.blocked_ips.add(src_ip)
+                                total_blocked += 1
+                                
+                                if st.session_state.get("voice_enabled", True):
+                                    try:
+                                        voice_alert(attack_type=attack_name, ip=src_ip)
+                                        audio_html = get_voice_alert_html(attack_type=attack_name, ip=src_ip)
+                                        if audio_html:
+                                            ph_audio.markdown(audio_html, unsafe_allow_html=True)
+                                    except Exception:
+                                        pass
+                                        
+                            cmd_logs.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [ALERT] Critical attack {attack_name} from IP {src_ip} BLOCKED! [SUCCESS]")
+                            
+                            # Webhook dispatch to corp_url (if not local)
+                            if corp_url and not demo_sim:
+                                try:
+                                    api_payload = {
+                                        "event": "threat_blocked",
+                                        "attacker_ip": src_ip,
+                                        "attack_type": attack_name,
+                                        "severity": severity,
+                                        "timestamp": alert.get("timestamp")
+                                    }
+                                    requests.post(corp_url, json=api_payload, headers={"Authorization": f"Bearer {corp_key}"}, timeout=2)
+                                except:
+                                    pass
+                        else:
+                            cmd_logs.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [INFO] Clean traffic from IP {src_ip} verified.")
+                            
+                        flow_visual = {
+                            "Time": datetime.datetime.now().strftime("%H:%M:%S"),
+                            "Source IP": src_ip,
+                            "Dest IP": flow_dict.get('IPV4_DST_ADDR', "10.0.0.1"),
+                            "Protocol": PROTOCOL_NAMES.get(flow_dict.get('PROTOCOL', 6), "Unknown"),
+                            "Status": " MALICIOUS" if is_malicious else " BENIGN"
+                        }
+                        recent_flows.append(flow_visual)
+                        if len(recent_flows) > 5:
+                            recent_flows.pop(0)
+                        if len(cmd_logs) > 6:
+                            cmd_logs.pop(0)
+                            
+                        ph_total_scanned.metric("Flows Analyzed", total_scanned)
+                        ph_active_threats.metric("Threats Detected", total_threats)
+                        ph_blocked.metric("Total IPs Blocked", total_blocked)
+                        
+                        df_feed = pd.DataFrame(recent_flows)[::-1]
+                        feed_html = """<table class="tactical-table" style="margin-top:0;">
+<thead><tr><th>TIME</th><th>SOURCE IP</th><th>DEST IP</th><th>PROTOCOL</th><th style="text-align: center;">STATUS</th></tr></thead><tbody>"""
+                        for _, r_row in df_feed.iterrows():
+                            status_style = "color: #FF4B4B; font-weight: 900;" if "MALICIOUS" in r_row['Status'] else "color: #00FF41; font-weight: 700;"
+                            row_bg = "background: rgba(255, 75, 75, 0.05);" if "MALICIOUS" in r_row['Status'] else ""
+                            feed_html += f'<tr style="{row_bg}"><td>{r_row["Time"]}</td><td style="color: #FFFF00;">{r_row["Source IP"]}</td><td>{r_row["Dest IP"]}</td><td>{r_row["Protocol"]}</td><td style="text-align: center; {status_style}">{r_row["Status"]}</td></tr>'
+                        feed_html += "</tbody></table>"
+                        ph_feed.markdown(feed_html, unsafe_allow_html=True)
+                        
+                        log_html = '<div class="tactical-log">'
+                        for log in cmd_logs:
+                            clean_log = log.replace("[INFO]", '<span class="log-info">[INFO]</span>').replace("[ALERT]", '<span class="log-error">[ALERT]</span>').replace("[SUCCESS]", '<span class="log-success">[SUCCESS]</span>')
+                            log_html += f"<div>{clean_log}</div>"
+                        log_html += "</div>"
+                        ph_cmd_log.markdown(log_html, unsafe_allow_html=True)
+                        
+                        if len(live_alerts) != _last_map_count:
+                            _last_map_count = len(live_alerts)
+                            map_data = pd.DataFrame(live_alerts)
+                            layer = pdk.Layer('ScatterplotLayer', data=map_data, get_position='[lon, lat]', get_color=[255, 0, 0, 255], get_radius=180000, pickable=True, auto_highlight=True, radius_min_pixels=15, radius_max_pixels=20)
+                            pulse = pdk.Layer('ScatterplotLayer', data=map_data, get_position='[lon, lat]', get_color=[255, 0, 0, 60], get_radius=500000, pickable=False)
+                            ph_map.pydeck_chart(pdk.Deck(layers=[pulse, layer], initial_view_state=_stable_view, map_style="dark"))
+                            
+                    except Exception as ex:
+                        print(f"Streaming loop error: {ex}")
+                else:
+                    if not demo_sim:
+                        cmd_logs.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [API] Awaiting live traffic telemetry packet...")
+                        if len(cmd_logs) > 6: cmd_logs.pop(0)
+                        log_html = '<div class="tactical-log">'
+                        for log in cmd_logs:
+                            log_html += f"<div>{log}</div>"
+                        log_html += "</div>"
+                        ph_cmd_log.markdown(log_html, unsafe_allow_html=True)
+                        
+                time.sleep(2.0)
+                
+        st.stop()
         
     template_df = pd.DataFrame(columns=FEATURES)
     csv_template = template_df.to_csv(index=False).encode('utf-8')
@@ -4042,6 +4376,38 @@ with tab_corporate:
                                     send_critical_alert(alert)
                                 except Exception:
                                     pass
+
+                            # ---- CORPORATE ENDPOINT WEBHOOK DISPATCH ----
+                            corp_url = st.session_state.get("corp_url", "")
+                            corp_key = st.session_state.get("corp_key", "")
+                            if corp_url:
+                                import requests
+                                api_payload = {
+                                    "event": "threat_detected",
+                                    "attacker_ip": src_ip,
+                                    "target_ip": alert.get("dst_ip", "10.0.0.1"),
+                                    "attack_type": attack_name,
+                                    "severity": severity,
+                                    "anomaly_score": anomaly_score,
+                                    "malicious_probability": malicious_prob,
+                                    "is_blocked": src_ip in st.session_state.blocked_ips,
+                                    "geography": {
+                                        "latitude": alert.get("latitude", 0.0),
+                                        "longitude": alert.get("longitude", 0.0),
+                                        "city": alert.get("city", "N/A"),
+                                        "country": alert.get("country", "N/A")
+                                    },
+                                    "timestamp": alert.get("timestamp")
+                                }
+                                api_headers = {
+                                    "Authorization": f"Bearer {corp_key}" if corp_key else "",
+                                    "Content-Type": "application/json"
+                                }
+                                try:
+                                    requests.post(corp_url, json=api_payload, headers=api_headers, timeout=3)
+                                    cmd_logs.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [API] Threat metadata successfully dispatched to corporate endpoint.")
+                                except Exception as e:
+                                    cmd_logs.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [API-ERROR] Failed to dispatch threat metadata: {str(e)}")
                             
                             # Create a SEPARATE map point for pydeck (uses real geolocation)
                             map_point = {
