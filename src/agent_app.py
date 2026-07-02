@@ -3920,6 +3920,85 @@ with tab_corporate:
     st.markdown("<br>", unsafe_allow_html=True)
     
     if scan_mode == "Real-Time Remote API Streaming (SIEM)":
+        # Check if the stream was just stopped, if so, process the save and transition
+        if st.session_state.get("stop_api_stream", False):
+            total_rows = st.session_state.get('siem_total_scanned', 0)
+            malicious_added = st.session_state.get('siem_total_threats', 0)
+            assets_shielded = st.session_state.get('siem_total_blocked', 0)
+            
+            st.session_state.last_upload_total_flows = total_rows
+            st.session_state.last_upload_malicious = malicious_added
+            st.session_state.scan_initiated = True
+            
+            if total_rows > 0:
+                try:
+                    import json as _json
+                    map_points = []
+                    attack_counts = {}
+                    
+                    # Build map data from alerts detected in this SIEM session
+                    for alert in st.session_state.alerts[:malicious_added]:
+                        lat = alert.get('latitude', 0)
+                        lon = alert.get('longitude', 0)
+                        atk = alert.get('attack_type', 'Unknown')
+                        
+                        attack_counts[atk] = attack_counts.get(atk, 0) + 1
+                        
+                        map_points.append({
+                            'src_ip': alert.get('src_ip', ''),
+                            'dst_ip': alert.get('dst_ip', ''),
+                            'attack_type': atk,
+                            'severity': alert.get('severity', 'NORMAL'),
+                            'city': alert.get('city', 'N/A'),
+                            'country': alert.get('country', 'N/A'),
+                            'latitude': lat,
+                            'longitude': lon,
+                            'timestamp': alert.get('timestamp', ''),
+                        })
+                    
+                    map_json_str = _json.dumps(map_points, ensure_ascii=False)
+                    attack_dist_str = _json.dumps(attack_counts, ensure_ascii=False)
+                    
+                    _user_email = st.session_state.get('user_email', '')
+                    _filename = f"SIEM_Live_Feed_{datetime.datetime.now().strftime('%H%M%S')}"
+                    
+                    db_utils.save_session(
+                        user_email=_user_email,
+                        filename=_filename,
+                        total_flows=total_rows,
+                        total_threats=malicious_added,
+                        total_blocked=assets_shielded,
+                        map_data_json=map_json_str,
+                        attack_distribution=attack_dist_str,
+                        report_path=""
+                    )
+                    st.toast(f"SIEM DATA SYNCHRONIZED: {malicious_added} Threats archived to Intelligence Vault.")
+                    
+                    # ---- TELEGRAM: POST-SCAN SUMMARY ----
+                    if is_telegram_configured() and malicious_added > 0:
+                        try:
+                            _top_country_tg = 'Unknown'
+                            for _a in st.session_state.alerts[:malicious_added]:
+                                _c = _a.get('country', '')
+                                if _c and _c != 'N/A':
+                                    _top_country_tg = _c
+                                    break
+                            send_scan_summary(
+                                total_flows=total_rows,
+                                total_threats=malicious_added,
+                                total_blocked=assets_shielded,
+                                attack_counts=attack_counts,
+                                filename=_filename,
+                                top_country=_top_country_tg
+                            )
+                        except:
+                            pass
+                except Exception as save_err:
+                    print(f"[!] SIEM Session save error: {save_err}")
+            
+            st.session_state.stop_api_stream = False
+            st.rerun()
+
         # ── SIEM Remote Streaming mode ──
         st.markdown("""
         <div style="background: rgba(0, 212, 255, 0.02); border: 1px solid rgba(0, 212, 255, 0.2); border-radius: 12px; padding: 25px; margin-bottom: 25px;">
@@ -3996,6 +4075,12 @@ with tab_corporate:
                     st.session_state.stop_api_stream = False
                     st.session_state.scan_initiated = True
                     st.session_state.siem_threat_counter = 0
+                    st.session_state.siem_total_scanned = 0
+                    st.session_state.siem_total_threats = 0
+                    st.session_state.siem_total_blocked = 0
+                    st.session_state.siem_recent_flows = []
+                    st.session_state.siem_cmd_logs = []
+                    st.session_state.siem_live_alerts = []
                     st.rerun()
         with c_str_btn2:
             if st.button("STOP STREAMING", key="btn_stop_stream", use_container_width=True):
@@ -4028,12 +4113,12 @@ with tab_corporate:
             import pydeck as pdk
             _stable_view = pdk.ViewState(latitude=20.0, longitude=0.0, zoom=1, pitch=0)
             
-            total_scanned = 0
-            total_threats = 0
-            total_blocked = 0
-            recent_flows = []
-            cmd_logs = []
-            live_alerts = []
+            total_scanned = st.session_state.get('siem_total_scanned', 0)
+            total_threats = st.session_state.get('siem_total_threats', 0)
+            total_blocked = st.session_state.get('siem_total_blocked', 0)
+            recent_flows = st.session_state.get('siem_recent_flows', [])
+            cmd_logs = st.session_state.get('siem_cmd_logs', [])
+            live_alerts = st.session_state.get('siem_live_alerts', [])
             _last_map_count = 0
             
             import time
@@ -4147,6 +4232,7 @@ with tab_corporate:
                         is_malicious = stage0_flag or stage1_flag
                         
                         total_scanned += 1
+                        st.session_state.siem_total_scanned = total_scanned
                         severity = "NORMAL"
                         attack_name = "Benign"
                         src_ip = str(flow_dict.get('IPV4_SRC_ADDR', "192.168.1.1"))
@@ -4161,6 +4247,7 @@ with tab_corporate:
 
                         if is_malicious:
                             total_threats += 1
+                            st.session_state.siem_total_threats = total_threats
                             # Increment threat counter for blocking logic
                             if 'siem_threat_counter' not in st.session_state:
                                 st.session_state.siem_threat_counter = 0
@@ -4228,6 +4315,7 @@ with tab_corporate:
                                 db_utils.block_ip_db(src_ip, user_email=_u_email)
                                 st.session_state.blocked_ips.add(src_ip)
                                 total_blocked += 1
+                                st.session_state.siem_total_blocked = total_blocked
                                 
                                 if st.session_state.get("voice_enabled", True):
                                     try:
@@ -4274,6 +4362,10 @@ with tab_corporate:
                             recent_flows.pop(0)
                         if len(cmd_logs) > 6:
                             cmd_logs.pop(0)
+                            
+                        st.session_state.siem_recent_flows = recent_flows
+                        st.session_state.siem_cmd_logs = cmd_logs
+                        st.session_state.siem_live_alerts = live_alerts
                             
                         ph_total_scanned.metric("Flows Analyzed", total_scanned)
                         ph_active_threats.metric("Threats Detected", total_threats)
@@ -4820,6 +4912,9 @@ def render_executive_dashboard():
         return
 
     df_alerts = pd.DataFrame(st.session_state.alerts)
+    pdf_malicious = st.session_state.get('last_upload_malicious', 0)
+    if pdf_malicious > 0 and pdf_malicious < len(df_alerts):
+        df_alerts = df_alerts.head(pdf_malicious)
     total_flows = st.session_state.get('last_upload_total_flows', len(df_alerts))
     malicious_count = len(df_alerts)
     
@@ -4962,6 +5057,9 @@ def render_deep_analysis_dashboard():
         return
 
     df_alerts = pd.DataFrame(st.session_state.alerts)
+    pdf_malicious = st.session_state.get('last_upload_malicious', 0)
+    if pdf_malicious > 0 and pdf_malicious < len(df_alerts):
+        df_alerts = df_alerts.head(pdf_malicious)
     top_threat = df_alerts['attack_type'].value_counts().index[0] if not df_alerts.empty else "Unknown"
     
     # 1. Top Talkers Filter
